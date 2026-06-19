@@ -21,6 +21,7 @@ const toBase64Url = (b64: string): string => {
 
 export interface Env {
     DB: D1Database;
+    VERSION_CACHE: KVNamespace;
     INSTANCE_DOMAIN: string;
     REGISTRATION_ENABLED: string;
     RESERVED_USERNAMES: string;
@@ -36,6 +37,61 @@ app.get('/health', async (c) => {
         return c.text('200 OK', 200);
     } catch (e: any) {
         return c.text(`500 Internal Server Error: ${e.message}`, 500);
+    }
+});
+
+/* proxy GitHub Releases API with 1-hour KV cache */
+app.get('/api/client/version', async (c) => {
+    const CACHE_KEY = 'client_version';
+    const CACHE_TTL = 3600;
+
+    try {
+        const cached = await c.env.VERSION_CACHE.get(CACHE_KEY);
+        if (cached) {
+            return c.json(JSON.parse(cached), 200);
+        }
+    } catch (_) {}
+
+    try {
+        const resp = await fetch(
+            'https://api.github.com/repos/salmonization/shyake'
+            + '/releases',
+            { headers: { 'User-Agent': 'shyake-server/1.0' } }
+        );
+        if (!resp.ok) {
+            return c.json({ error: 'Failed to fetch releases' }, 502);
+        }
+        const releases: any[] = await resp.json();
+
+        let release: string | null = null;
+        let pre_release: string | null = null;
+
+        for (const r of releases) {
+            if (r.draft) continue;
+            if (!r.prerelease && !release) {
+                release = r.tag_name;
+            }
+            if (r.prerelease && !pre_release) {
+                pre_release = r.tag_name;
+            }
+            if (release && pre_release) break;
+        }
+
+        const payload: Record<string, string> = {};
+        if (release) payload.release = release;
+        if (pre_release) payload.pre_release = pre_release;
+
+        try {
+            await c.env.VERSION_CACHE.put(
+                CACHE_KEY,
+                JSON.stringify(payload),
+                { expirationTtl: CACHE_TTL }
+            );
+        } catch (_) {}
+
+        return c.json(payload, 200);
+    } catch (e: any) {
+        return c.json({ error: e.message }, 500);
     }
 });
 

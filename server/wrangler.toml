@@ -10,6 +10,10 @@ RESERVED_USERNAMES = "admin,system,support,noreply,shyake,root,postmaster"
 FEDERATION_ENABLED = true
 MAX_MAIL_SIZE = 196608 # 192 KiB
 
+[[kv_namespaces]]
+binding = "VERSION_CACHE"
+id = "00000000-0000-0000-0000-000000000001"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "shyake-db"

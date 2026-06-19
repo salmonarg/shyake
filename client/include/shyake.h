@@ -149,4 +149,93 @@ shyake_fp_result* shyake_fingerprint(shyake_ctx *ctx,
                                      const char *target_user,
                                      int do_update);
 
+/* --- Local saved mail --- */
+
+typedef struct {
+    char *mail_id;
+    char *sender;
+    char *recipient;
+    char *subject;     /* decrypted, NULL if failed */
+    int64_t timestamp;
+    int size;
+} shyake_saved_entry;
+
+typedef struct {
+    shyake_saved_entry *entries;
+    int count;
+} shyake_saved_list;
+
+void shyake_free_saved_list(shyake_saved_list *list);
+
+/*
+ * Save encrypted mail JSON to ~/.config/shyake/saved/<id>.json.
+ * Returns SHYAKE_OK on success.
+ */
+shyake_err shyake_save_mail(shyake_ctx *ctx, const char *mail_id);
+
+/*
+ * Load and decrypt a saved mail from disk (body included).
+ * Returns allocated shyake_mail_detail* on success, NULL on failure.
+ */
+shyake_mail_detail* shyake_read_saved(shyake_ctx *ctx,
+                                       const char *mail_id);
+
+/*
+ * Show metadata of a single saved mail (no body decrypt).
+ * Returns allocated shyake_mail_detail* on success, NULL on failure.
+ */
+shyake_mail_detail* shyake_check_saved_one(shyake_ctx *ctx,
+                                            const char *mail_id);
+
+/*
+ * List all locally saved mail (decrypts subjects).
+ * Returns allocated shyake_saved_list* on success, NULL on failure.
+ */
+shyake_saved_list* shyake_list_saved(shyake_ctx *ctx);
+
+/* --- File encryption / decryption --- */
+
+/*
+ * Encrypt a file using own or recipient's KEM public key.
+ * recipient: NULL to use own key; otherwise fetches recipient pubkey.
+ * out_path: NULL to derive from in_path (appends ".enc").
+ * Returns SHYAKE_OK on success.
+ */
+shyake_err shyake_enc_file(shyake_ctx *ctx,
+                            const char *in_path,
+                            const char *out_path,
+                            const char *recipient);
+
+/*
+ * Decrypt a file using own KEM secret key.
+ * out_path: NULL to write to stdout.
+ * Returns SHYAKE_OK on success.
+ */
+shyake_err shyake_dec_file(shyake_ctx *ctx,
+                            const char *in_path,
+                            const char *out_path);
+
+/* --- Client version --- */
+
+typedef struct {
+    char *release;     /* latest stable tag, e.g. "v0.1.1" */
+    char *pre_release; /* latest pre-release tag, may be NULL */
+} shyake_version_info;
+
+void shyake_free_version_info(shyake_version_info *v);
+
+/*
+ * Query server for latest client version.
+ * Returns allocated shyake_version_info* on success, NULL on failure.
+ */
+shyake_version_info* shyake_get_latest_version(shyake_ctx *ctx);
+
+/*
+ * Download and install the latest stable release binary.
+ * current_version: running version string (e.g. "v0.1.1").
+ * Returns SHYAKE_OK on success.
+ */
+shyake_err shyake_self_update(shyake_ctx *ctx,
+                               const char *current_version);
+
 #endif /* SHYAKE_H */

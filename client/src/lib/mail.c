@@ -2,6 +2,8 @@
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
+#include <sys/stat.h>
+#include <dirent.h>
 #include <oqs/oqs.h>
 #include <openssl/sha.h>
 #include <curl/curl.h>
@@ -602,4 +604,286 @@ shyake_burn(shyake_ctx *ctx, const char *mail_id)
     curl_slist_free_all(headers);
     curl_easy_cleanup(curl);
     return ret;
+}
+
+/* ------------------------------------------------------------------ */
+/* Local saved mail                                                   */
+/* ------------------------------------------------------------------ */
+
+/* ensure saved/ directory exists */
+static int
+ensure_saved_dir(const char *config_dir)
+{
+    char path[512];
+    snprintf(path, sizeof(path), "%s/saved", config_dir);
+    struct stat st = {0};
+    if (stat(path, &st) == -1) {
+        if (mkdir(path, 0700) == -1)
+            return -1;
+    }
+    return 0;
+}
+
+void
+shyake_free_saved_list(shyake_saved_list *list)
+{
+    if (!list) return;
+    for (int i = 0; i < list->count; i++) {
+        free(list->entries[i].mail_id);
+        free(list->entries[i].sender);
+        free(list->entries[i].recipient);
+        free(list->entries[i].subject);
+    }
+    free(list->entries);
+    free(list);
+}
+
+/* fetch raw JSON for a mail_id from server, save to saved/<id>.json */
+shyake_err
+shyake_save_mail(shyake_ctx *ctx, const char *mail_id)
+{
+    if (!ctx || !mail_id) return SHYAKE_ERR;
+
+    if (ensure_saved_dir(ctx->config_dir) != 0) {
+        fprintf(stderr, "Failed to create saved directory.\n");
+        return SHYAKE_ERR;
+    }
+
+    char endpoint[128];
+    snprintf(endpoint, sizeof(endpoint), "/api/mail/%s", mail_id);
+    char url[512];
+    snprintf(url, sizeof(url), "%s%s", ctx->instance_url, endpoint);
+
+    CURL *curl = curl_easy_init();
+    if (!curl) return SHYAKE_ERR;
+
+    if (ctx->debug)
+        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+
+    struct curl_slist *headers = create_auth_headers(
+        ctx, endpoint, ctx->username);
+    if (!headers) { curl_easy_cleanup(curl); return SHYAKE_ERR; }
+
+    struct curl_response resp = { .data = malloc(1), .size = 0 };
+    resp.data[0] = '\0';
+
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_write_cb);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&resp);
+
+    CURLcode res = curl_easy_perform(curl);
+    shyake_err ret = SHYAKE_OK;
+
+    if (res == CURLE_OK) {
+        long http_code;
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+        if (http_code == 200) {
+            /* write raw JSON to saved/<id>.json */
+            char save_path[640];
+            snprintf(save_path, sizeof(save_path), "%s/saved/%s.json",
+                     ctx->config_dir, mail_id);
+            FILE *f = fopen(save_path, "w");
+            if (f) {
+                fputs(resp.data, f);
+                fclose(f);
+            } else {
+                ret = SHYAKE_ERR;
+            }
+        } else if (http_code == 404) {
+            ret = SHYAKE_ERR_NOT_FOUND;
+        } else {
+            ret = SHYAKE_ERR_HTTP;
+        }
+    } else {
+        ret = SHYAKE_ERR_NETWORK;
+    }
+
+    free(resp.data);
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+    return ret;
+}
+
+/* parse a saved JSON file and decrypt; body_out controls body decrypt */
+static shyake_mail_detail*
+parse_saved_json(shyake_ctx *ctx, const char *mail_id, int decrypt_body)
+{
+    char path[640];
+    snprintf(path, sizeof(path), "%s/saved/%s.json",
+             ctx->config_dir, mail_id);
+
+    FILE *f = fopen(path, "r");
+    if (!f) {
+        fprintf(stderr, "Saved mail not found: %s\n", mail_id);
+        return NULL;
+    }
+    fseek(f, 0, SEEK_END);
+    long flen = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    char *raw = malloc(flen + 1);
+    fread(raw, 1, flen, f);
+    raw[flen] = '\0';
+    fclose(f);
+
+    cJSON *json = cJSON_Parse(raw);
+    free(raw);
+    if (!json) return NULL;
+
+    const char *snd = cJSON_GetObjectItem(json, "sender")->valuestring;
+    const char *rec = cJSON_GetObjectItem(json, "recipient")->valuestring;
+    int ts = cJSON_GetObjectItem(json, "timestamp")->valueint;
+    int sz = cJSON_GetObjectItem(json, "size")->valueint;
+
+    const char *ekf = (strcmp(ctx->username, snd) == 0)
+        ? "enc_key_sender" : "enc_key_recipient";
+    const char *enc_key = cJSON_GetObjectItem(json, ekf)->valuestring;
+    const char *enc_sub = cJSON_GetObjectItem(
+        json, "enc_subject")->valuestring;
+    const char *enc_bdy = cJSON_GetObjectItem(
+        json, "enc_body")->valuestring;
+
+    char ksk_path[512];
+    size_t ksk_len;
+    snprintf(ksk_path, sizeof(ksk_path), "%s/kem_sk.bin",
+             ctx->config_dir);
+    uint8_t *ksk = load_file(ksk_path, &ksk_len);
+
+    char *sub = NULL, *bdy = NULL;
+    if (ksk) {
+        uint8_t *sym = kem_decapsulate_key(enc_key, ksk);
+        if (sym) {
+            sub = decrypt_from_b64(sym, enc_sub);
+            if (decrypt_body && enc_bdy)
+                bdy = decrypt_from_b64(sym, enc_bdy);
+            free(sym);
+        }
+        free(ksk);
+    }
+
+    shyake_mail_detail *result = calloc(1, sizeof(shyake_mail_detail));
+    result->mail_id   = strdup(mail_id);
+    result->sender    = strdup(snd);
+    result->recipient = strdup(rec);
+    result->subject   = sub;
+    result->body      = bdy;
+    result->timestamp = (int64_t)ts;
+    result->size      = sz;
+
+    cJSON_Delete(json);
+    return result;
+}
+
+shyake_mail_detail*
+shyake_read_saved(shyake_ctx *ctx, const char *mail_id)
+{
+    if (!ctx || !mail_id) return NULL;
+    return parse_saved_json(ctx, mail_id, 1);
+}
+
+shyake_mail_detail*
+shyake_check_saved_one(shyake_ctx *ctx, const char *mail_id)
+{
+    if (!ctx || !mail_id) return NULL;
+    return parse_saved_json(ctx, mail_id, 0);
+}
+
+shyake_saved_list*
+shyake_list_saved(shyake_ctx *ctx)
+{
+    if (!ctx) return NULL;
+
+    char saved_dir[512];
+    snprintf(saved_dir, sizeof(saved_dir), "%s/saved", ctx->config_dir);
+
+    DIR *d = opendir(saved_dir);
+    if (!d) return NULL;
+
+    /* count .json files */
+    int count = 0;
+    struct dirent *ent;
+    while ((ent = readdir(d)) != NULL) {
+        size_t nl = strlen(ent->d_name);
+        if (nl > 5 && strcmp(ent->d_name + nl - 5, ".json") == 0)
+            count++;
+    }
+    rewinddir(d);
+
+    shyake_saved_list *list = calloc(1, sizeof(shyake_saved_list));
+    if (count == 0) { closedir(d); return list; }
+
+    list->entries = calloc(count, sizeof(shyake_saved_entry));
+
+    /* load KEM secret key once */
+    char ksk_path[512];
+    size_t ksk_len;
+    snprintf(ksk_path, sizeof(ksk_path), "%s/kem_sk.bin",
+             ctx->config_dir);
+    uint8_t *ksk = load_file(ksk_path, &ksk_len);
+
+    int idx = 0;
+    while ((ent = readdir(d)) != NULL && idx < count) {
+        size_t nl = strlen(ent->d_name);
+        if (nl <= 5 || strcmp(ent->d_name + nl - 5, ".json") != 0)
+            continue;
+
+        /* derive mail_id from filename (strip .json) */
+        char mail_id[256];
+        size_t id_len = nl - 5;
+        if (id_len >= sizeof(mail_id)) id_len = sizeof(mail_id) - 1;
+        memcpy(mail_id, ent->d_name, id_len);
+        mail_id[id_len] = '\0';
+
+        char fpath[768];
+        snprintf(fpath, sizeof(fpath), "%s/%s", saved_dir, ent->d_name);
+        FILE *f = fopen(fpath, "r");
+        if (!f) continue;
+        fseek(f, 0, SEEK_END);
+        long flen = ftell(f);
+        fseek(f, 0, SEEK_SET);
+        char *raw = malloc(flen + 1);
+        fread(raw, 1, flen, f);
+        raw[flen] = '\0';
+        fclose(f);
+
+        cJSON *json = cJSON_Parse(raw);
+        free(raw);
+        if (!json) continue;
+
+        const char *snd = cJSON_GetObjectItem(json, "sender")->valuestring;
+        const char *rec = cJSON_GetObjectItem(
+            json, "recipient")->valuestring;
+        int ts = cJSON_GetObjectItem(json, "timestamp")->valueint;
+        int sz = cJSON_GetObjectItem(json, "size")->valueint;
+        const char *ekf = (strcmp(ctx->username, snd) == 0)
+            ? "enc_key_sender" : "enc_key_recipient";
+        const char *enc_key = cJSON_GetObjectItem(json, ekf)->valuestring;
+        const char *enc_sub = cJSON_GetObjectItem(
+            json, "enc_subject")->valuestring;
+
+        char *sub = NULL;
+        if (ksk) {
+            uint8_t *sym = kem_decapsulate_key(enc_key, ksk);
+            if (sym) {
+                sub = decrypt_from_b64(sym, enc_sub);
+                free(sym);
+            }
+        }
+
+        shyake_saved_entry *e = &list->entries[idx];
+        e->mail_id   = strdup(mail_id);
+        e->sender    = strdup(snd);
+        e->recipient = strdup(rec);
+        e->subject   = sub ? sub : strdup("(decryption failed)");
+        e->timestamp = (int64_t)ts;
+        e->size      = sz;
+        idx++;
+
+        cJSON_Delete(json);
+    }
+
+    list->count = idx;
+    free(ksk);
+    closedir(d);
+    return list;
 }

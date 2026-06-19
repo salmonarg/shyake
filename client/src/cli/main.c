@@ -318,6 +318,13 @@ int main(int argc, char *argv[])
 
     const char *cmd = argv[1];
 
+    // handle --version/-v/-V
+    if (strcmp(cmd, "--version") == 0 || strcmp(cmd, "-v") == 0 ||
+        strcmp(cmd, "-V") == 0) {
+        printf("Use 'shyake version' instead.\n");
+        return EXIT_SUCCESS;
+    }
+
     // handle help commands
     if (strcmp(cmd, "help") == 0 || strcmp(cmd, "--help") == 0 ||
         strcmp(cmd, "-h") == 0) {
@@ -328,13 +335,16 @@ int main(int argc, char *argv[])
     // handle man command
     if (strcmp(cmd, "man") == 0) {
         if (argc < 3) {
-            printf("shyake - PQC E2EE mailer\n\n");
+            printf("Usage: shyake [option] [command]\n\n");
+            printf("shyake v0.2.0 - PQC E2EE mailer\n\n");
             printf("Commands:\n");
             printf("  init          Initialize\n");
             printf("  register      Register on an instance\n");
             printf("  send          Send a piece of mail\n");
-            printf("  check         Check inbox or sent\n");
-            printf("  fetch         Fetch a piece of mail\n");
+            printf("  check         Check inbox, sent, or saved\n");
+            printf("  fetch         Fetch and decrypt a piece of mail\n");
+            printf("  save          Save a piece of mail locally\n");
+            printf("  read          Read a locally saved piece of mail\n");
             printf("  burn          Burn a piece of mail\n");
             printf("  block         Block a user or instance\n");
             printf("  unblock       Unblock a user or instance\n");
@@ -342,6 +352,9 @@ int main(int argc, char *argv[])
             printf("  fingerprint   Show or update fingerprint\n");
             printf("  whoami        Show current identity\n");
             printf("  destroy       Destroy identity\n");
+            printf("  enc           Encrypt a file\n");
+            printf("  dec           Decrypt a file\n");
+            printf("  update        Update shyake to the latest release\n");
             printf("  man           Show manual pages\n");
             printf("  version       Show client version\n\n");
             printf("Global Options:\n");
@@ -349,7 +362,11 @@ int main(int argc, char *argv[])
             printf("  --plain       Disable pager, color, and truncation\n");
             printf("  --no-color    Disable colored output\n");
             printf("  --debug       Output verbose curl logs to stderr\n\n");
-            printf("For detailed usage, run: shyake man <command>\n");
+            printf("For detailed usage, run: shyake man <command>\n\n");
+            printf("Copyright (c) 2026 Salmonization. "
+                   "Released under the BSD 2-Clause License.\n");
+            printf("Source, issues, and contributions: "
+                   "https://github.com/salmonization/shyake\n");
         } else {
             const char *subcmd = argv[2];
             if (strcmp(subcmd, "init") == 0) {
@@ -524,6 +541,74 @@ int main(int argc, char *argv[])
                 printf("shyake version - Show client version\n\n");
                 printf("Usage:\n");
                 printf("    shyake version\n");
+            } else if (strcmp(subcmd, "save") == 0) {
+                printf("shyake save - Save a piece of mail locally\n\n");
+                printf("Usage:\n");
+                printf("    shyake save <id>\n\n");
+                printf("    Fetches the encrypted mail from the server\n");
+                printf("    and stores it to "
+                       "~/.config/shyake/saved/<id>.json.\n");
+                printf("    The mail is NOT decrypted at this stage.\n");
+                printf("    Use 'shyake check saved' to list saved "
+                       "mail.\n");
+                printf("    Use 'shyake read <id>' to decrypt and "
+                       "display.\n\n");
+                printf("Options:\n");
+                printf("    --debug         "
+                       "Output verbose curl logs to stderr\n");
+            } else if (strcmp(subcmd, "read") == 0) {
+                printf("shyake read - Read a locally saved piece of "
+                       "mail\n\n");
+                printf("Usage:\n");
+                printf("    shyake read <id>\n\n");
+                printf("    Decrypts and displays a mail saved by "
+                       "'shyake save'.\n");
+                printf("    Output is identical to 'shyake fetch'.\n\n");
+                printf("Options:\n");
+                printf("    -r, --raw       "
+                       "Output body only (no header)\n");
+                printf("    --no-color      "
+                       "Disable colored output\n");
+            } else if (strcmp(subcmd, "enc") == 0) {
+                printf("shyake enc - Encrypt a file\n\n");
+                printf("Usage:\n");
+                printf("    shyake enc <file> [-t <username>] "
+                       "[-o <output>]\n\n");
+                printf("    Encrypts <file> using ML-KEM-768 + "
+                       "ChaCha20-Poly1305.\n");
+                printf("    Without -t: uses your own public key.\n");
+                printf("    With -t: fetches and uses the recipient's "
+                       "public key.\n");
+                printf("    Output defaults to <file>.enc\n\n");
+                printf("Options:\n");
+                printf("    -t <username>   Encrypt for a recipient\n");
+                printf("    -o <path>       Output file path\n");
+                printf("    --debug         "
+                       "Output verbose curl logs to stderr\n\n");
+                printf("Note: This command is intended for debugging"
+                       "/testing purposes.\n");
+            } else if (strcmp(subcmd, "dec") == 0) {
+                printf("shyake dec - Decrypt a file\n\n");
+                printf("Usage:\n");
+                printf("    shyake dec <file> [-o <output>]\n\n");
+                printf("    Decrypts a .enc file using your KEM secret "
+                       "key.\n");
+                printf("    Without -o: writes decrypted bytes to "
+                       "stdout.\n\n");
+                printf("Options:\n");
+                printf("    -o <path>       Output file path\n\n");
+                printf("Note: This command is intended for debugging"
+                       "/testing purposes.\n");
+            } else if (strcmp(subcmd, "update") == 0) {
+                printf("shyake update - Update shyake to the latest "
+                       "release\n\n");
+                printf("Usage:\n");
+                printf("    shyake update\n");
+                printf("    shyake update show\n\n");
+                printf("    'shyake update' installs the latest stable"
+                       " release.\n");
+                printf("    'shyake update show' displays version "
+                       "information.\n");
             } else if (strcmp(subcmd, "man") == 0) {
                 printf("shyake man - Show manual pages\n\n");
                 printf("Usage:\n");
@@ -539,7 +624,7 @@ int main(int argc, char *argv[])
     }
 
     if (strcmp(cmd, "version") == 0) {
-        printf("shyake v0.1.1\n");
+        printf("shyake v0.2.0\n");
         return EXIT_SUCCESS;
     }
 
@@ -807,6 +892,7 @@ int main(int argc, char *argv[])
         const char *arg = argv[2];
         int is_list = (strcmp(arg, "inbox") == 0 ||
                        strcmp(arg, "sent") == 0);
+        int is_saved = (strcmp(arg, "saved") == 0);
 
         cli_render_opts ro = {0};
         if (is_list) {
@@ -829,6 +915,79 @@ int main(int argc, char *argv[])
                     default: break;
                 }
             }
+        }
+
+        /* handle check saved [<id>] entirely from local disk */
+        if (is_saved) {
+            const char *user = app_cfg->username;
+            if (!user) {
+                fprintf(stderr, "Missing USERNAME in config file.\n");
+                free_app_config(app_cfg);
+                free(config_dir);
+                return EXIT_FAILURE;
+            }
+            shyake_config cfg = {
+                .config_dir = config_dir,
+                .instance_url = app_cfg->instance
+                                ? app_cfg->instance : "",
+                .username = user,
+                .plain = global_plain,
+                .debug = global_debug,
+                .no_color = global_no_color || app_cfg->no_color
+            };
+            shyake_ctx *ctx = shyake_init_ctx(&cfg);
+            int ret = 0;
+
+            if (argc >= 4) {
+                /* check saved <id> */
+                const char *saved_id = argv[3];
+                shyake_mail_detail *d = shyake_check_saved_one(
+                    ctx, saved_id);
+                if (d) {
+                    cli_render_mail_header(d, cfg.no_color,
+                                           app_cfg->tz_hours,
+                                           app_cfg->time_format,
+                                           app_cfg->time_format_recent);
+                    shyake_free_mail_detail(d);
+                } else {
+                    ret = -1;
+                }
+            } else {
+                /* check saved — list all */
+                shyake_saved_list *list = shyake_list_saved(ctx);
+                if (list) {
+                    if (list->count == 0) {
+                        printf("No saved mail.\n");
+                    } else {
+                        for (int i = 0; i < list->count; i++) {
+                            shyake_saved_entry *e = &list->entries[i];
+                            char ts_buf[32];
+                            cli_format_timestamp(
+                                e->timestamp,
+                                app_cfg->tz_hours,
+                                app_cfg->time_format,
+                                app_cfg->time_format_recent,
+                                ts_buf, sizeof(ts_buf));
+                            char sz_buf[16];
+                            cli_format_size(e->size, sz_buf,
+                                            sizeof(sz_buf));
+                            printf("%-24s  %-20s  %-32s  %6s  %s\n",
+                                   e->mail_id,
+                                   e->sender,
+                                   e->subject ? e->subject : "",
+                                   sz_buf, ts_buf);
+                        }
+                    }
+                    shyake_free_saved_list(list);
+                } else {
+                    printf("No saved mail.\n");
+                }
+            }
+
+            shyake_free_ctx(ctx);
+            free_app_config(app_cfg);
+            free(config_dir);
+            return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
         }
 
         const char *inst = app_cfg->instance;
@@ -1211,6 +1370,287 @@ int main(int argc, char *argv[])
             fprintf(stderr, "Error: Destroy failed.\n");
         }
 
+        free(config_dir);
+        return ret == SHYAKE_OK ? EXIT_SUCCESS : EXIT_FAILURE;
+    }
+
+    if (strcmp(cmd, "save") == 0) {
+        if (argc < 3) {
+            fprintf(stderr, "Usage: shyake save <id>\n");
+            free_app_config(app_cfg);
+            free(config_dir);
+            return EXIT_FAILURE;
+        }
+        const char *mail_id = argv[2];
+        const char *inst = app_cfg->instance;
+        const char *user = app_cfg->username;
+
+        if (!inst || !user) {
+            fprintf(stderr,
+                    "Missing INSTANCE or USERNAME in config file.\n");
+            free_app_config(app_cfg);
+            free(config_dir);
+            return EXIT_FAILURE;
+        }
+        shyake_config cfg = {
+            .config_dir = config_dir,
+            .instance_url = inst,
+            .username = user,
+            .plain = global_plain,
+            .debug = global_debug,
+            .no_color = global_no_color || app_cfg->no_color
+        };
+        shyake_ctx *ctx = shyake_init_ctx(&cfg);
+        shyake_err ret = shyake_save_mail(ctx, mail_id);
+        shyake_free_ctx(ctx);
+        free_app_config(app_cfg);
+        free(config_dir);
+        if (ret == SHYAKE_OK)
+            printf("Mail saved.\n");
+        else if (ret == SHYAKE_ERR_NOT_FOUND)
+            fprintf(stderr, "Error: Mail not found.\n");
+        else if (ret == SHYAKE_ERR_NETWORK)
+            fprintf(stderr, "Error: Network failure.\n");
+        else
+            fprintf(stderr, "Error: Save failed.\n");
+        return ret == SHYAKE_OK ? EXIT_SUCCESS : EXIT_FAILURE;
+    }
+
+    if (strcmp(cmd, "read") == 0) {
+        int raw = 0;
+        const char *mail_id = NULL;
+
+        static struct option read_options[] = {
+            {"raw", no_argument, 0, 'r'},
+            {0, 0, 0, 0}
+        };
+        int opt, opt_idx = 0;
+        optind = 2;
+        while ((opt = getopt_long(argc, argv, "r", read_options,
+                                  &opt_idx)) != -1) {
+            switch (opt) {
+                case 'r': raw = 1; break;
+                default: break;
+            }
+        }
+        if (optind < argc) mail_id = argv[optind];
+
+        if (!mail_id) {
+            fprintf(stderr, "Usage: shyake read <id>\n");
+            free_app_config(app_cfg);
+            free(config_dir);
+            return EXIT_FAILURE;
+        }
+
+        const char *user = app_cfg->username;
+        if (!user) {
+            fprintf(stderr, "Missing USERNAME in config file.\n");
+            free_app_config(app_cfg);
+            free(config_dir);
+            return EXIT_FAILURE;
+        }
+        shyake_config cfg = {
+            .config_dir = config_dir,
+            .instance_url = app_cfg->instance ? app_cfg->instance : "",
+            .username = user,
+            .plain = global_plain,
+            .debug = global_debug,
+            .no_color = global_no_color || app_cfg->no_color
+        };
+        shyake_ctx *ctx = shyake_init_ctx(&cfg);
+        int ret = 0;
+        shyake_mail_detail *d = shyake_read_saved(ctx, mail_id);
+        if (d) {
+            cli_render_mail_detail(d, raw, cfg.no_color, cfg.plain,
+                                   app_cfg->tz_hours,
+                                   app_cfg->time_format,
+                                   app_cfg->time_format_recent);
+            shyake_free_mail_detail(d);
+        } else {
+            ret = -1;
+        }
+        shyake_free_ctx(ctx);
+        free_app_config(app_cfg);
+        free(config_dir);
+        return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+    }
+
+    if (strcmp(cmd, "enc") == 0 || strcmp(cmd, "encrypt") == 0) {
+        char *recipient = NULL;
+        char *out_path  = NULL;
+        const char *in_path = NULL;
+
+        static struct option enc_options[] = {
+            {"to",     required_argument, 0, 't'},
+            {"output", required_argument, 0, 'o'},
+            {0, 0, 0, 0}
+        };
+        int opt, opt_idx = 0;
+        optind = 2;
+        while ((opt = getopt_long(argc, argv, "t:o:", enc_options,
+                                  &opt_idx)) != -1) {
+            switch (opt) {
+                case 't': recipient = optarg; break;
+                case 'o': out_path  = optarg; break;
+                default: break;
+            }
+        }
+        if (optind < argc) in_path = argv[optind];
+
+        if (!in_path) {
+            fprintf(stderr,
+                    "Usage: shyake enc <file> [-t <username>] "
+                    "[-o <output>]\n");
+            free_app_config(app_cfg);
+            free(config_dir);
+            return EXIT_FAILURE;
+        }
+
+        const char *inst = app_cfg->instance;
+        const char *user = app_cfg->username;
+
+        /* instance/user only required when fetching recipient pubkey */
+        if (recipient && (!inst || !user)) {
+            fprintf(stderr,
+                    "Missing INSTANCE or USERNAME in config file.\n");
+            free_app_config(app_cfg);
+            free(config_dir);
+            return EXIT_FAILURE;
+        }
+        shyake_config cfg = {
+            .config_dir = config_dir,
+            .instance_url = inst ? inst : "",
+            .username = user ? user : "",
+            .plain = global_plain,
+            .debug = global_debug,
+            .no_color = global_no_color || app_cfg->no_color
+        };
+        shyake_ctx *ctx = shyake_init_ctx(&cfg);
+        shyake_err ret = shyake_enc_file(ctx, in_path, out_path,
+                                         recipient);
+        shyake_free_ctx(ctx);
+        free_app_config(app_cfg);
+        free(config_dir);
+        if (ret == SHYAKE_ERR_CRYPTO)
+            fprintf(stderr, "Error: Encryption failed.\n");
+        else if (ret == SHYAKE_ERR_NETWORK)
+            fprintf(stderr, "Error: Failed to fetch recipient pubkey.\n");
+        else if (ret != SHYAKE_OK)
+            fprintf(stderr, "Error: Encryption failed.\n");
+        return ret == SHYAKE_OK ? EXIT_SUCCESS : EXIT_FAILURE;
+    }
+
+    if (strcmp(cmd, "dec") == 0 || strcmp(cmd, "decrypt") == 0) {
+        char *out_path  = NULL;
+        const char *in_path = NULL;
+
+        static struct option dec_options[] = {
+            {"output", required_argument, 0, 'o'},
+            {0, 0, 0, 0}
+        };
+        int opt, opt_idx = 0;
+        optind = 2;
+        while ((opt = getopt_long(argc, argv, "o:", dec_options,
+                                  &opt_idx)) != -1) {
+            switch (opt) {
+                case 'o': out_path = optarg; break;
+                default: break;
+            }
+        }
+        if (optind < argc) in_path = argv[optind];
+
+        if (!in_path) {
+            fprintf(stderr,
+                    "Usage: shyake dec <file> [-o <output>]\n");
+            free_app_config(app_cfg);
+            free(config_dir);
+            return EXIT_FAILURE;
+        }
+
+        const char *user = app_cfg->username;
+        shyake_config cfg = {
+            .config_dir = config_dir,
+            .instance_url = app_cfg->instance ? app_cfg->instance : "",
+            .username = user ? user : "",
+            .plain = global_plain,
+            .debug = global_debug,
+            .no_color = global_no_color || app_cfg->no_color
+        };
+        shyake_ctx *ctx = shyake_init_ctx(&cfg);
+        shyake_err ret = shyake_dec_file(ctx, in_path, out_path);
+        shyake_free_ctx(ctx);
+        free_app_config(app_cfg);
+        free(config_dir);
+        if (ret != SHYAKE_OK)
+            fprintf(stderr, "Error: Decryption failed.\n");
+        return ret == SHYAKE_OK ? EXIT_SUCCESS : EXIT_FAILURE;
+    }
+
+    if (strcmp(cmd, "update") == 0) {
+        /* update show */
+        if (argc >= 3 && strcmp(argv[2], "show") == 0) {
+            const char *inst = app_cfg->instance;
+            const char *user = app_cfg->username;
+            if (!inst || !user) {
+                fprintf(stderr,
+                        "Missing INSTANCE or USERNAME in config "
+                        "file.\n");
+                free_app_config(app_cfg);
+                free(config_dir);
+                return EXIT_FAILURE;
+            }
+            shyake_config cfg = {
+                .config_dir = config_dir,
+                .instance_url = inst,
+                .username = user,
+                .plain = global_plain,
+                .debug = global_debug,
+                .no_color = global_no_color || app_cfg->no_color
+            };
+            shyake_ctx *ctx = shyake_init_ctx(&cfg);
+            shyake_version_info *info = shyake_get_latest_version(ctx);
+            shyake_free_ctx(ctx);
+            free_app_config(app_cfg);
+            free(config_dir);
+
+            if (!info) {
+                fprintf(stderr, "Error: Failed to fetch version "
+                        "info.\n");
+                return EXIT_FAILURE;
+            }
+            printf("%-9s %s\n", "Stable:",
+                   info->release ? info->release : "N/A");
+            printf("%-9s %s\n", "Preview:",
+                   info->pre_release ? info->pre_release : "N/A");
+            printf("More details: "
+                   "https://github.com/salmonization/shyake"
+                   "/releases\n");
+            shyake_free_version_info(info);
+            return EXIT_SUCCESS;
+        }
+
+        /* update (install) */
+        const char *inst = app_cfg->instance;
+        const char *user = app_cfg->username;
+        if (!inst || !user) {
+            fprintf(stderr,
+                    "Missing INSTANCE or USERNAME in config file.\n");
+            free_app_config(app_cfg);
+            free(config_dir);
+            return EXIT_FAILURE;
+        }
+        shyake_config cfg = {
+            .config_dir = config_dir,
+            .instance_url = inst,
+            .username = user,
+            .plain = global_plain,
+            .debug = global_debug,
+            .no_color = global_no_color || app_cfg->no_color
+        };
+        shyake_ctx *ctx = shyake_init_ctx(&cfg);
+        shyake_err ret = shyake_self_update(ctx, "v0.2.0");
+        shyake_free_ctx(ctx);
+        free_app_config(app_cfg);
         free(config_dir);
         return ret == SHYAKE_OK ? EXIT_SUCCESS : EXIT_FAILURE;
     }
