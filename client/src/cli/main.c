@@ -336,7 +336,7 @@ int main(int argc, char *argv[])
     if (strcmp(cmd, "man") == 0) {
         if (argc < 3) {
             printf("Usage: shyake [option] [command]\n\n");
-            printf("shyake v0.2.0 - PQC E2EE mailer\n\n");
+            printf("shyake v0.2.0-indev.1 - PQC E2EE mailer\n\n");
             printf("Commands:\n");
             printf("  init          Initialize\n");
             printf("  register      Register on an instance\n");
@@ -344,7 +344,7 @@ int main(int argc, char *argv[])
             printf("  check         Check inbox, sent, or saved\n");
             printf("  fetch         Fetch and decrypt a piece of mail\n");
             printf("  save          Save a piece of mail locally\n");
-            printf("  read          Read a locally saved piece of mail\n");
+            printf("  read          Read a locally saved mail\n");
             printf("  burn          Burn a piece of mail\n");
             printf("  block         Block a user or instance\n");
             printf("  unblock       Unblock a user or instance\n");
@@ -414,13 +414,19 @@ int main(int argc, char *argv[])
                 printf("        tar czf - ./source | "
                        "shyake send -t salmon -s \"source.tar.gz\"\n");
             } else if (strcmp(subcmd, "check") == 0) {
-                printf("shyake check - Check inbox or sent\n\n");
+                printf("shyake check - Check inbox, sent, or saved\n\n");
                 printf("Usage:\n");
                 printf("    shyake check inbox|sent\n");
-                printf("    shyake check <id>\n\n");
-                printf("    'check inbox' and 'check sent' list mail.\n");
-                printf("    'check <id>' shows header of a piece of "
-                       "mail.\n\n");
+                printf("    shyake check saved\n");
+                printf("    shyake check <id>\n");
+                printf("    shyake check saved <id>\n\n");
+                printf("    'check inbox' and 'check sent' list mail "
+                       "from the server.\n");
+                printf("    'check saved' lists locally saved mail.\n");
+                printf("    'check <id>' shows the header of a single "
+                       "mail.\n");
+                printf("    'check saved <id>' shows the header of a "
+                       "locally saved mail.\n\n");
                 printf("Options:\n");
                 printf("    --count         "
                        "Print count only\n");
@@ -557,8 +563,7 @@ int main(int argc, char *argv[])
                 printf("    --debug         "
                        "Output verbose curl logs to stderr\n");
             } else if (strcmp(subcmd, "read") == 0) {
-                printf("shyake read - Read a locally saved piece of "
-                       "mail\n\n");
+                printf("shyake read - Read a locally saved mail\n\n");
                 printf("Usage:\n");
                 printf("    shyake read <id>\n\n");
                 printf("    Decrypts and displays a mail saved by "
@@ -624,7 +629,7 @@ int main(int argc, char *argv[])
     }
 
     if (strcmp(cmd, "version") == 0) {
-        printf("shyake v0.2.0\n");
+        printf("shyake v0.2.0-indev.1\n");
         return EXIT_SUCCESS;
     }
 
@@ -953,32 +958,38 @@ int main(int argc, char *argv[])
                     ret = -1;
                 }
             } else {
-                /* check saved — list all */
-                shyake_saved_list *list = shyake_list_saved(ctx);
-                if (list) {
-                    if (list->count == 0) {
-                        printf("No saved mail.\n");
-                    } else {
-                        for (int i = 0; i < list->count; i++) {
-                            shyake_saved_entry *e = &list->entries[i];
-                            char ts_buf[32];
-                            cli_format_timestamp(
-                                e->timestamp,
-                                app_cfg->tz_hours,
-                                app_cfg->time_format,
-                                app_cfg->time_format_recent,
-                                ts_buf, sizeof(ts_buf));
-                            char sz_buf[16];
-                            cli_format_size(e->size, sz_buf,
-                                            sizeof(sz_buf));
-                            printf("%-24s  %-20s  %-32s  %6s  %s\n",
-                                   e->mail_id,
-                                   e->sender,
-                                   e->subject ? e->subject : "",
-                                   sz_buf, ts_buf);
-                        }
+                /* check saved — list all, reuse cli_render_mail_list */
+                shyake_saved_list *slist = shyake_list_saved(ctx);
+                if (slist) {
+                    /* convert shyake_saved_list -> shyake_mail_list */
+                    shyake_mail_list mlist;
+                    mlist.count   = slist->count;
+                    mlist.entries = calloc(
+                        slist->count, sizeof(shyake_mail_entry));
+
+                    for (int i = 0; i < slist->count; i++) {
+                        shyake_saved_entry *se = &slist->entries[i];
+                        shyake_mail_entry  *me = &mlist.entries[i];
+                        me->mail_id   = se->mail_id;
+                        me->party     = se->sender;
+                        me->subject   = se->subject;
+                        me->size      = se->size;
+                        me->timestamp = se->timestamp;
+                        me->is_sent   = 0; /* always show as inbox */
                     }
-                    shyake_free_saved_list(list);
+
+                    cli_render_opts ro2 = {0};
+                    ro2.no_color        = cfg.no_color;
+                    ro2.plain           = cfg.plain;
+                    ro2.tz_hours        = app_cfg->tz_hours;
+                    ro2.time_fmt        = app_cfg->time_format;
+                    ro2.time_fmt_recent = app_cfg->time_format_recent;
+                    parse_check_columns(app_cfg->check_columns,
+                                        ro2.col_order, &ro2.col_count);
+                    cli_render_mail_list(&mlist, &ro2);
+
+                    free(mlist.entries);
+                    shyake_free_saved_list(slist);
                 } else {
                     printf("No saved mail.\n");
                 }
