@@ -360,7 +360,7 @@ int main(int argc, char *argv[])
             printf("  destroy       Destroy identity\n");
             printf("  enc           Encrypt a file\n");
             printf("  dec           Decrypt a file\n");
-            printf("  update        Update shyake to the latest release\n");
+            printf("  update        Check and install updates\n");
             printf("  man           Show manual pages\n");
             printf("  version       Show client version\n\n");
             printf("Global Options:\n");
@@ -618,15 +618,19 @@ int main(int argc, char *argv[])
                 printf("Note: This command is intended for debugging"
                        "/testing purposes.\n");
             } else if (strcmp(subcmd, "update") == 0) {
-                printf("shyake update - Update shyake to the latest "
-                       "release\n\n");
+                printf("shyake update - Check and install updates\n\n");
                 printf("Usage:\n");
                 printf("    shyake update\n");
-                printf("    shyake update show\n\n");
-                printf("    'shyake update' installs the latest stable"
-                       " release.\n");
-                printf("    'shyake update show' displays version "
-                       "information.\n");
+                printf("    shyake update stable\n");
+                printf("    shyake update preview\n\n");
+                printf("    'shyake update' shows installed and available "
+                       "versions.\n");
+                printf("    'shyake update stable' installs the latest "
+                       "stable release.\n");
+                printf("    'shyake update preview' installs the latest "
+                       "preview release.\n");
+                printf("    Preview is only offered when newer than "
+                       "stable.\n");
             } else if (strcmp(subcmd, "man") == 0) {
                 printf("shyake man - Show manual pages\n\n");
                 printf("Usage:\n");
@@ -1696,8 +1700,8 @@ int main(int argc, char *argv[])
         };
         shyake_ctx *ctx = shyake_init_ctx(&cfg);
 
-        /* update show */
-        if (argc >= 3 && strcmp(argv[2], "show") == 0) {
+        /* update (no args) — show version info */
+        if (argc < 3) {
             shyake_version_info *info = shyake_get_latest_version(
                 ctx, SHYAKE_VERSION_URL);
             shyake_free_ctx(ctx);
@@ -1709,20 +1713,58 @@ int main(int argc, char *argv[])
                         "info.\n");
                 return EXIT_FAILURE;
             }
-            printf("%-9s %s\n", "Stable:",
+
+            int show_preview = info->pre_release &&
+                shyake_version_cmp(info->pre_release,
+                                   info->release) > 0;
+
+            printf("Installed: %s\n", SHYAKE_VERSION);
+            printf("Stable:    %s\n",
                    info->release ? info->release : "N/A");
-            printf("%-9s %s\n", "Preview:",
-                   info->pre_release ? info->pre_release : "N/A");
-            printf("More details: "
-                   "https://github.com/salmonization/shyake"
-                   "/releases\n");
+            if (show_preview)
+                printf("Preview:   %s\n", info->pre_release);
+
+            int on_stable = info->release &&
+                strcmp(SHYAKE_VERSION, info->release) == 0;
+            int on_preview = show_preview && info->pre_release &&
+                strcmp(SHYAKE_VERSION, info->pre_release) == 0;
+            int want_stable = !on_stable;
+            int want_preview = show_preview && !on_preview;
+
+            if (want_stable || want_preview) {
+                printf("\n");
+                if (want_stable && want_preview)
+                    printf("Run 'shyake update stable' or "
+                           "'shyake update preview' to update.\n");
+                else if (want_stable)
+                    printf("Run 'shyake update stable' to update.\n");
+                else
+                    printf("Run 'shyake update preview' to install "
+                           "the preview release.\n");
+            }
+
             shyake_free_version_info(info);
             return EXIT_SUCCESS;
         }
 
-        /* update (install) */
+        /* update stable | update preview */
+        const char *subcmd = argv[2];
+        shyake_update_channel channel;
+        if (strcmp(subcmd, "stable") == 0) {
+            channel = SHYAKE_UPDATE_STABLE;
+        } else if (strcmp(subcmd, "preview") == 0) {
+            channel = SHYAKE_UPDATE_PREVIEW;
+        } else {
+            fprintf(stderr,
+                    "Usage: shyake update [stable|preview]\n");
+            shyake_free_ctx(ctx);
+            free_app_config(app_cfg);
+            free(config_dir);
+            return EXIT_FAILURE;
+        }
+
         shyake_err ret = shyake_self_update(ctx, SHYAKE_VERSION_URL,
-                                             SHYAKE_VERSION);
+                                             SHYAKE_VERSION, channel);
         shyake_free_ctx(ctx);
         free_app_config(app_cfg);
         free(config_dir);

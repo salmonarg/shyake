@@ -17,6 +17,41 @@ shyake_free_version_info(shyake_version_info *v)
     free(v);
 }
 
+/* parse "vX.Y.Z" or "vX.Y.Z-anything" into components */
+static void
+parse_ver(const char *s, int *maj, int *min, int *pat, int *has_pre)
+{
+    *maj = *min = *pat = *has_pre = 0;
+    if (!s || !*s) return;
+    const char *p = (*s == 'v') ? s + 1 : s;
+    *maj = atoi(p);
+    p = strchr(p, '.');
+    if (!p) return;
+    p++;
+    *min = atoi(p);
+    p = strchr(p, '.');
+    if (!p) return;
+    p++;
+    *pat = atoi(p);
+    *has_pre = (strchr(p, '-') != NULL);
+}
+
+int
+shyake_version_cmp(const char *a, const char *b)
+{
+    int a_maj, a_min, a_pat, a_pre;
+    int b_maj, b_min, b_pat, b_pre;
+    parse_ver(a, &a_maj, &a_min, &a_pat, &a_pre);
+    parse_ver(b, &b_maj, &b_min, &b_pat, &b_pre);
+
+    if (a_maj != b_maj) return a_maj - b_maj;
+    if (a_min != b_min) return a_min - b_min;
+    if (a_pat != b_pat) return a_pat - b_pat;
+    /* same base: release (no pre) > prerelease */
+    if (a_pre != b_pre) return a_pre ? -1 : 1;
+    return 0;
+}
+
 shyake_version_info*
 shyake_get_latest_version(shyake_ctx *ctx, const char *version_url)
 {
@@ -105,7 +140,8 @@ download_to_tmp(shyake_ctx *ctx, const char *download_url,
 
 shyake_err
 shyake_self_update(shyake_ctx *ctx, const char *version_url,
-                   const char *current_version)
+                   const char *current_version,
+                   shyake_update_channel channel)
 {
     if (!ctx) return SHYAKE_ERR;
 
@@ -117,13 +153,33 @@ shyake_self_update(shyake_ctx *ctx, const char *version_url,
 
     if (!info->release) {
         shyake_free_version_info(info);
-        fprintf(stderr, "No release version available.\n");
+        fprintf(stderr, "No stable release available.\n");
         return SHYAKE_ERR;
     }
 
-    /* compare current with latest */
-    if (current_version && strcmp(current_version, info->release) == 0) {
-        printf("You are in the latest version.\n");
+    const char *target = (channel == SHYAKE_UPDATE_PREVIEW)
+        ? info->pre_release : info->release;
+    const char *channel_name = (channel == SHYAKE_UPDATE_PREVIEW)
+        ? "preview" : "stable";
+
+    if (!target) {
+        fprintf(stderr, "No %s release available.\n", channel_name);
+        shyake_free_version_info(info);
+        return SHYAKE_ERR;
+    }
+
+    /* reject preview that is not newer than stable */
+    if (channel == SHYAKE_UPDATE_PREVIEW &&
+        shyake_version_cmp(info->pre_release, info->release) <= 0) {
+        fprintf(stderr,
+                "No preview release available newer than stable.\n");
+        shyake_free_version_info(info);
+        return SHYAKE_ERR;
+    }
+
+    /* already on the requested target */
+    if (current_version && strcmp(current_version, target) == 0) {
+        printf("Already on the latest %s release.\n", channel_name);
         shyake_free_version_info(info);
         return SHYAKE_OK;
     }
@@ -139,16 +195,15 @@ shyake_self_update(shyake_ctx *ctx, const char *version_url,
     const char *asset = "shyake-linux-x86_64.tar.gz";
 #endif
 
-    /* construct download URLs */
     char dl_url[512], sha_url[512];
     snprintf(dl_url, sizeof(dl_url),
              "https://github.com/salmonization/shyake/releases/download"
-             "/%s/%s", info->release, asset);
+             "/%s/%s", target, asset);
     snprintf(sha_url, sizeof(sha_url),
              "https://github.com/salmonization/shyake/releases/download"
-             "/%s/sha256sums.txt", info->release);
+             "/%s/sha256sums.txt", target);
 
-    fprintf(stderr, "Downloading %s %s...\n", info->release, asset);
+    fprintf(stderr, "Downloading %s %s...\n", target, asset);
 
     char sha_filename[64];
     snprintf(sha_filename, sizeof(sha_filename), "shyake-sha256sums.txt");
@@ -191,10 +246,8 @@ shyake_self_update(shyake_ctx *ctx, const char *version_url,
 #endif
 
     if (self_path[0] == '\0') {
-        /* fallback: try which */
         FILE *wp = popen("which shyake", "r");
         if (wp) { fgets(self_path, sizeof(self_path), wp); pclose(wp); }
-        /* trim newline */
         size_t l = strlen(self_path);
         if (l > 0 && self_path[l-1] == '\n') self_path[l-1] = '\0';
     }
@@ -207,17 +260,14 @@ shyake_self_update(shyake_ctx *ctx, const char *version_url,
         return SHYAKE_ERR;
     }
 
-    /* extract and install */
     char extract_cmd[1024];
     snprintf(extract_cmd, sizeof(extract_cmd),
              "tar xzf '%s' -C /tmp && cp /tmp/shyake '%s' && chmod 755 '%s'",
              tar_path, self_path, self_path);
     int ext_ret = system(extract_cmd);
 
-    /* save version string before freeing info */
     char installed_ver[64];
-    snprintf(installed_ver, sizeof(installed_ver), "%s",
-             info->release ? info->release : "unknown");
+    snprintf(installed_ver, sizeof(installed_ver), "%s", target);
 
     remove(sha_path); remove(tar_path);
     free(sha_path); free(tar_path);
