@@ -8,6 +8,7 @@
 #include <errno.h>
 
 #include "shyake.h"
+#include "prompt.h"
 
 static const char *default_config =
     "# shyake global configuration file\n\n"
@@ -116,6 +117,45 @@ int cmd_init(const char *config_dir)
         fprintf(stderr, "Failed to initialize shyake context.\n");
         free(allocated);
         return 1;
+    }
+
+    /* Prompt for passphrase only when new keys will actually be generated */
+    char kem_pk_path[512], sig_pk_path[512];
+    struct stat st2 = {0};
+    snprintf(kem_pk_path, sizeof(kem_pk_path), "%s/kem_pk.bin", config_dir);
+    snprintf(sig_pk_path, sizeof(sig_pk_path), "%s/sig_pk.bin", config_dir);
+    if (stat(kem_pk_path, &st2) == -1 || stat(sig_pk_path, &st2) == -1) {
+        char kem_sk_path[512];
+        snprintf(kem_sk_path, sizeof(kem_sk_path),
+                 "%s/kem_sk.bin", config_dir);
+        char prompt_str[600];
+        snprintf(prompt_str, sizeof(prompt_str),
+                 "Enter passphrase for key '%s'"
+                 " (empty for no passphrase): ", kem_sk_path);
+        char pp1[512], pp2[512];
+        memset(pp1, 0, sizeof(pp1));
+        memset(pp2, 0, sizeof(pp2));
+        if (read_passphrase(prompt_str, pp1, sizeof(pp1)) != 0) {
+            shyake_free_ctx(ctx);
+            free(allocated);
+            return 1;
+        }
+        if (pp1[0] != '\0') {
+            if (read_passphrase("Enter same passphrase again: ",
+                                pp2, sizeof(pp2)) != 0
+                || strcmp(pp1, pp2) != 0) {
+                if (strcmp(pp1, pp2) != 0)
+                    fprintf(stderr, "Passphrases do not match.\n");
+                memset(pp1, 0, sizeof(pp1));
+                memset(pp2, 0, sizeof(pp2));
+                shyake_free_ctx(ctx);
+                free(allocated);
+                return 1;
+            }
+            memset(pp2, 0, sizeof(pp2));
+        }
+        shyake_set_passphrase(ctx, pp1);
+        memset(pp1, 0, sizeof(pp1));
     }
 
     if (shyake_generate_keys(ctx) == 0) {

@@ -206,7 +206,7 @@ shyake_dec_file(shyake_ctx *ctx,
     char ksk_path[512];
     size_t ksk_len;
     snprintf(ksk_path, sizeof(ksk_path), "%s/kem_sk.bin", ctx->config_dir);
-    uint8_t *ksk = load_file(ksk_path, &ksk_len);
+    uint8_t *ksk = load_sk_decrypted(ksk_path, ctx->passphrase, &ksk_len);
     if (!ksk) { free(kem_ct); free(ct); return SHYAKE_ERR_CRYPTO; }
 
     OQS_KEM *kem = OQS_KEM_new("ML-KEM-768");

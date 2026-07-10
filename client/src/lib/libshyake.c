@@ -129,13 +129,32 @@ shyake_init_ctx(const shyake_config *config)
 void
 shyake_free_ctx(shyake_ctx *ctx)
 {
-    // free context
     if (!ctx) return;
     free(ctx->config_dir);
     free(ctx->instance_url);
     free(ctx->username);
+    volatile uint8_t *vp = (volatile uint8_t *)ctx->passphrase;
+    for (size_t i = 0; i < sizeof(ctx->passphrase); i++) vp[i] = 0;
+    vp = (volatile uint8_t *)ctx->new_passphrase;
+    for (size_t i = 0; i < sizeof(ctx->new_passphrase); i++) vp[i] = 0;
     free(ctx);
     curl_global_cleanup();
+}
+
+void
+shyake_set_passphrase(shyake_ctx *ctx, const char *passphrase)
+{
+    if (!ctx) return;
+    strncpy(ctx->passphrase, passphrase ? passphrase : "", 511);
+    ctx->passphrase[511] = '\0';
+}
+
+void
+shyake_set_new_passphrase(shyake_ctx *ctx, const char *passphrase)
+{
+    if (!ctx) return;
+    strncpy(ctx->new_passphrase, passphrase ? passphrase : "", 511);
+    ctx->new_passphrase[511] = '\0';
 }
 
 /* ------------------------------------------------------------------ */
@@ -161,7 +180,8 @@ shyake_generate_keys(shyake_ctx *ctx)
                 snprintf(path_sk, sizeof(path_sk), "%s/kem_sk.bin",
                          ctx->config_dir);
                 save_file(path_pk, pk, kem->length_public_key);
-                save_file(path_sk, sk, kem->length_secret_key);
+                save_sk_encrypted(path_sk, ctx->passphrase, sk,
+                                  kem->length_secret_key);
             } else ret = -1;
             free(pk); free(sk);
             OQS_KEM_free(kem);
@@ -178,7 +198,8 @@ shyake_generate_keys(shyake_ctx *ctx)
                 snprintf(path_sk, sizeof(path_sk), "%s/sig_sk.bin",
                          ctx->config_dir);
                 save_file(path_pk, pk, sig->length_public_key);
-                save_file(path_sk, sk, sig->length_secret_key);
+                save_sk_encrypted(path_sk, ctx->passphrase, sk,
+                                  sig->length_secret_key);
             } else ret = -1;
             free(pk); free(sk);
             OQS_SIG_free(sig);
@@ -248,7 +269,7 @@ shyake_register(shyake_ctx *ctx, const char *username)
     snprintf(path, sizeof(path), "%s/sig_pk.bin", ctx->config_dir);
     uint8_t *spk = load_file(path, &spk_len);
     snprintf(path, sizeof(path), "%s/sig_sk.bin", ctx->config_dir);
-    uint8_t *ssk = load_file(path, &ssk_len);
+    uint8_t *ssk = load_sk_decrypted(path, ctx->passphrase, &ssk_len);
 
     if (!kpk || !spk || !ssk) {
         free(kpk); free(spk); free(ssk);

@@ -374,7 +374,7 @@ Key `config` fields:
 | `init [-c <dir>]` | Generate config directory and key pairs |
 | `register -u <user> -i <url>` | Register on an instance |
 | `whoami` | Print current profile (no network) |
-| `send -t <recipient> [-s <subj>] [file]` | Send a mail |
+| `send -t <recipient> [-s <subj>] [file]` | Send a mail (text only; pipe through `base64` for binary data) |
 | `check [inbox\|sent] [id]` | List mailbox or inspect a single mail header |
 | `fetch [--raw] <id>` | Decrypt and print a mail; `--raw` outputs body only |
 | `burn <id>` | Delete a mail (sender or recipient may burn) |

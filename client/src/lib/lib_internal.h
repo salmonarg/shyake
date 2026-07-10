@@ -15,6 +15,8 @@ struct shyake_ctx {
     int plain;
     int debug;
     int no_color;
+    char passphrase[512];      /* current passphrase for loading encrypted sk */
+    char new_passphrase[512];  /* new passphrase for saving sk (rotate only) */
 };
 
 /* libcurl response buffer */
@@ -37,6 +39,12 @@ char* fetch_recipient_pubkey(shyake_ctx *ctx, const char *recipient);
 /* libshyake.c (file I/O & base64) */
 int save_file(const char *path, const uint8_t *data, size_t len);
 uint8_t* load_file(const char *path, size_t *len);
+
+/* passphrase.c */
+int save_sk_encrypted(const char *path, const char *passphrase,
+                      const uint8_t *sk, size_t sk_len);
+uint8_t* load_sk_decrypted(const char *path, const char *passphrase,
+                           size_t *out_len);
 char* base64_encode(const uint8_t *data, size_t len);
 uint8_t* base64_decode(const char *b64, size_t *out_len);
 

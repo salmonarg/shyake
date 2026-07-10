@@ -21,6 +21,12 @@ typedef struct {
 shyake_ctx* shyake_init_ctx(const shyake_config *config);
 void shyake_free_ctx(shyake_ctx *ctx);
 
+/* Set the passphrase used to decrypt secret keys (NUL or empty = none) */
+void shyake_set_passphrase(shyake_ctx *ctx, const char *passphrase);
+
+/* Set the passphrase used when saving new secret keys during rotate */
+void shyake_set_new_passphrase(shyake_ctx *ctx, const char *passphrase);
+
 /*
  * Semantic error codes returned by lib functions.
  * SHYAKE_OK = 0 so existing `ret == 0` checks still work.

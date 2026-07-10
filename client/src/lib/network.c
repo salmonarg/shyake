@@ -34,7 +34,7 @@ create_signed_headers(shyake_ctx *ctx, const char *method,
     char path[512];
     size_t ssk_len;
     snprintf(path, sizeof(path), "%s/sig_sk.bin", ctx->config_dir);
-    uint8_t *ssk = load_file(path, &ssk_len);
+    uint8_t *ssk = load_sk_decrypted(path, ctx->passphrase, &ssk_len);
     if (!ssk)
         return NULL;
 

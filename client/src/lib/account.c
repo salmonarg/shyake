@@ -146,15 +146,16 @@ shyake_rotate(shyake_ctx *ctx)
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
         if (http_code == 200 || http_code == 201) {
             /* save new keys locally only after server confirmed */
+            const char *new_pp = ctx->new_passphrase;
             char path[512];
             snprintf(path, sizeof(path), "%s/kem_pk.bin", ctx->config_dir);
             save_file(path, new_kpk, kem->length_public_key);
             snprintf(path, sizeof(path), "%s/kem_sk.bin", ctx->config_dir);
-            save_file(path, new_ksk, kem->length_secret_key);
+            save_sk_encrypted(path, new_pp, new_ksk, kem->length_secret_key);
             snprintf(path, sizeof(path), "%s/sig_pk.bin", ctx->config_dir);
             save_file(path, new_spk, sig->length_public_key);
             snprintf(path, sizeof(path), "%s/sig_sk.bin", ctx->config_dir);
-            save_file(path, new_ssk, sig->length_secret_key);
+            save_sk_encrypted(path, new_pp, new_ssk, sig->length_secret_key);
         } else {
             ret = SHYAKE_ERR_HTTP;
         }

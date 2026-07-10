@@ -6,6 +6,7 @@
 #include <ctype.h>
 #include "shyake.h"
 #include "display.h"
+#include "prompt.h"
 
 #ifndef SHYAKE_VERSION
 #define SHYAKE_VERSION "dev"
@@ -411,12 +412,15 @@ int main(int argc, char *argv[])
                 printf("    -s <subject>    Subject line\n");
                 printf("    --debug         "
                        "Output verbose curl logs to stderr\n\n");
+                printf("Note:\n");
+                printf("    shyake transmits text only. Binary data\n");
+                printf("    must be base64-encoded before sending.\n\n");
                 printf("Tips:\n");
-                printf("    Send a single file:\n");
-                printf("        shyake send -t salmon -s \"image.png\" "
-                       "image.png\n");
-                printf("    Send a directory as a tar archive:\n");
-                printf("        tar czf - ./source | "
+                printf("    Send a small image:\n");
+                printf("        base64 image.png | "
+                       "shyake send -t salmon -s \"image.png\"\n");
+                printf("    Send a small archive:\n");
+                printf("        tar czf - ./source | base64 | "
                        "shyake send -t salmon -s \"source.tar.gz\"\n");
             } else if (strcmp(subcmd, "check") == 0) {
                 printf("shyake check - Check inbox, sent, or saved\n\n");
@@ -467,11 +471,15 @@ int main(int argc, char *argv[])
                        "> output.txt\n");
                 printf("    Save a piece of mail (body only):\n");
                 printf("        shyake fetch <id> -r > output.txt\n");
-                printf("    Extract a tar archive received:\n");
-                printf("        shyake fetch <id> -r | tar xzf -\n");
+                printf("    Decode a received image:\n");
+                printf("        shyake fetch <id> -r | "
+                       "base64 -d > image.png\n");
+                printf("    Decode and extract a received archive:\n");
+                printf("        shyake fetch <id> -r | "
+                       "base64 -d | tar xzf -\n");
                 printf("    Extract into a specific directory:\n");
                 printf("        shyake fetch <id> -r | "
-                       "tar xzf - -C ./output\n");
+                       "base64 -d | tar xzf - -C ./output\n");
             } else if (strcmp(subcmd, "burn") == 0) {
                 printf("shyake burn - Delete a piece of mail\n\n");
                 printf("Usage:\n");
@@ -710,6 +718,12 @@ int main(int argc, char *argv[])
         };
 
         shyake_ctx *ctx = shyake_init_ctx(&cfg);
+        if (prompt_passphrase(ctx, config_dir) != 0) {
+            shyake_free_ctx(ctx);
+            free_app_config(app_cfg);
+            free(config_dir);
+            return EXIT_FAILURE;
+        }
         fprintf(stderr, "Registering as %s at %s... ", username, inst);
         fflush(stderr);
         shyake_err ret = shyake_register(ctx, username);
@@ -860,6 +874,14 @@ int main(int argc, char *argv[])
         };
 
         shyake_ctx *ctx = shyake_init_ctx(&cfg);
+        if (prompt_passphrase(ctx, config_dir) != 0) {
+            shyake_free_ctx(ctx);
+            free_app_config(app_cfg);
+            free(config_dir);
+            free(body);
+            if (extracted_subject) free(extracted_subject);
+            return EXIT_FAILURE;
+        }
         fprintf(stderr, "Sending mail to %s... ", recipient);
         fflush(stderr);
         shyake_err ret = shyake_send(ctx, recipient, subject, body,
@@ -946,6 +968,12 @@ int main(int argc, char *argv[])
                 .no_color = global_no_color || app_cfg->no_color
             };
             shyake_ctx *ctx = shyake_init_ctx(&cfg);
+            if (prompt_passphrase(ctx, config_dir) != 0) {
+                shyake_free_ctx(ctx);
+                free_app_config(app_cfg);
+                free(config_dir);
+                return EXIT_FAILURE;
+            }
             int ret = 0;
 
             if (argc >= 4) {
@@ -1026,6 +1054,12 @@ int main(int argc, char *argv[])
         };
 
         shyake_ctx *ctx = shyake_init_ctx(&cfg);
+        if (prompt_passphrase(ctx, config_dir) != 0) {
+            shyake_free_ctx(ctx);
+            free_app_config(app_cfg);
+            free(config_dir);
+            return EXIT_FAILURE;
+        }
         int ret = 0;
 
         if (is_list) {
@@ -1113,6 +1147,12 @@ int main(int argc, char *argv[])
         };
 
         shyake_ctx *ctx = shyake_init_ctx(&cfg);
+        if (prompt_passphrase(ctx, config_dir) != 0) {
+            shyake_free_ctx(ctx);
+            free_app_config(app_cfg);
+            free(config_dir);
+            return EXIT_FAILURE;
+        }
         int ret = 0;
         shyake_mail_detail *d = shyake_fetch(ctx, mail_id);
         if (d) {
@@ -1159,6 +1199,12 @@ int main(int argc, char *argv[])
             .no_color = global_no_color || app_cfg->no_color
         };
         shyake_ctx *ctx = shyake_init_ctx(&cfg);
+        if (prompt_passphrase(ctx, config_dir) != 0) {
+            shyake_free_ctx(ctx);
+            free_app_config(app_cfg);
+            free(config_dir);
+            return EXIT_FAILURE;
+        }
         shyake_err ret = shyake_burn(ctx, mail_id);
         shyake_free_ctx(ctx);
         free_app_config(app_cfg);
@@ -1205,6 +1251,12 @@ int main(int argc, char *argv[])
             .no_color = global_no_color || app_cfg->no_color
         };
         shyake_ctx *ctx = shyake_init_ctx(&cfg);
+        if (prompt_passphrase(ctx, config_dir) != 0) {
+            shyake_free_ctx(ctx);
+            free_app_config(app_cfg);
+            free(config_dir);
+            return EXIT_FAILURE;
+        }
         shyake_err ret = shyake_block(ctx, target, is_unblock);
         shyake_free_ctx(ctx);
         free_app_config(app_cfg);
@@ -1241,6 +1293,13 @@ int main(int argc, char *argv[])
         };
 
         shyake_ctx *ctx = shyake_init_ctx(&cfg);
+        if (prompt_passphrase(ctx, config_dir) != 0 ||
+            prompt_new_passphrase(ctx, config_dir) != 0) {
+            shyake_free_ctx(ctx);
+            free_app_config(app_cfg);
+            free(config_dir);
+            return EXIT_FAILURE;
+        }
         fprintf(stderr, "Rotating keys for %s... ", user);
         fflush(stderr);
         shyake_err ret = shyake_rotate(ctx);
@@ -1369,6 +1428,12 @@ int main(int argc, char *argv[])
         };
 
         shyake_ctx *ctx = shyake_init_ctx(&cfg);
+        if (prompt_passphrase(ctx, config_dir) != 0) {
+            shyake_free_ctx(ctx);
+            free_app_config(app_cfg);
+            free(config_dir);
+            return EXIT_FAILURE;
+        }
         shyake_err ret = shyake_destroy(ctx);
 
         shyake_free_ctx(ctx);
@@ -1417,6 +1482,12 @@ int main(int argc, char *argv[])
             .no_color = global_no_color || app_cfg->no_color
         };
         shyake_ctx *ctx = shyake_init_ctx(&cfg);
+        if (prompt_passphrase(ctx, config_dir) != 0) {
+            shyake_free_ctx(ctx);
+            free_app_config(app_cfg);
+            free(config_dir);
+            return EXIT_FAILURE;
+        }
         shyake_err ret = shyake_save_mail(ctx, mail_id);
         shyake_free_ctx(ctx);
         free_app_config(app_cfg);
@@ -1474,6 +1545,12 @@ int main(int argc, char *argv[])
             .no_color = global_no_color || app_cfg->no_color
         };
         shyake_ctx *ctx = shyake_init_ctx(&cfg);
+        if (prompt_passphrase(ctx, config_dir) != 0) {
+            shyake_free_ctx(ctx);
+            free_app_config(app_cfg);
+            free(config_dir);
+            return EXIT_FAILURE;
+        }
         int ret = 0;
         shyake_mail_detail *d = shyake_read_saved(ctx, mail_id);
         if (d) {
@@ -1593,6 +1670,12 @@ int main(int argc, char *argv[])
             .no_color = global_no_color || app_cfg->no_color
         };
         shyake_ctx *ctx = shyake_init_ctx(&cfg);
+        if (prompt_passphrase(ctx, config_dir) != 0) {
+            shyake_free_ctx(ctx);
+            free_app_config(app_cfg);
+            free(config_dir);
+            return EXIT_FAILURE;
+        }
         shyake_err ret = shyake_dec_file(ctx, in_path, out_path);
         shyake_free_ctx(ctx);
         free_app_config(app_cfg);
