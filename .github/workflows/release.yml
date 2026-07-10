@@ -7,10 +7,6 @@ on:
 permissions:
   contents: write
 
-env:
-  # pin for reproducible builds; bump deliberately
-  LIBOQS_TAG: "0.14.0"
-
 jobs:
   build:
     name: ${{ matrix.artifact }}
@@ -40,46 +36,8 @@ jobs:
             brew install openssl@3
           fi
 
-      - name: Restore liboqs cache
-        id: liboqs-cache
-        uses: actions/cache@v4
-        with:
-          path: ~/liboqs-prefix
-          key: liboqs-${{ env.LIBOQS_TAG }}-minimal-${{ runner.os }}-${{ runner.arch }}
-
-      # minimal build: ML-KEM-768 and ML-DSA-65 only (see docs/DEV.md)
-      - name: Build liboqs (minimal)
-        if: steps.liboqs-cache.outputs.cache-hit != 'true'
-        run: |
-          git clone --depth 1 --single-branch -b "$LIBOQS_TAG" \
-              https://github.com/open-quantum-safe/liboqs.git
-          EXTRA=""
-          if [ "$RUNNER_OS" = "macOS" ]; then
-            EXTRA="-DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3)"
-          fi
-          cmake -S liboqs -B liboqs/build \
-              -DCMAKE_BUILD_TYPE=Release \
-              -DOQS_BUILD_ONLY_LIB=ON \
-              -DOQS_USE_OPENSSL=ON \
-              -DOQS_MINIMAL_BUILD="KEM_ml_kem_768;SIG_ml_dsa_65" \
-              -DCMAKE_INSTALL_LIBDIR=lib \
-              -DCMAKE_INSTALL_PREFIX="$HOME/liboqs-prefix" \
-              $EXTRA
-          cmake --build liboqs/build -j
-          cmake --install liboqs/build
-
-      # copy into the prefix client/Makefile expects
-      - name: Install liboqs
-        run: |
-          if [ "$RUNNER_OS" = "macOS" ]; then
-            PREFIX="$(brew --prefix)"
-            mkdir -p "$PREFIX/include" "$PREFIX/lib"
-            cp -R "$HOME/liboqs-prefix/include/." "$PREFIX/include/"
-            cp "$HOME/liboqs-prefix/lib/liboqs.a" "$PREFIX/lib/"
-          else
-            sudo cp -R "$HOME/liboqs-prefix/include/." /usr/local/include/
-            sudo cp "$HOME/liboqs-prefix/lib/liboqs.a" /usr/local/lib/
-          fi
+      # liboqs tag is pinned in .github/actions/liboqs/action.yml
+      - uses: ./.github/actions/liboqs
 
       - name: Build client
         run: make -C client VERSION='${{ github.event.release.tag_name }}'

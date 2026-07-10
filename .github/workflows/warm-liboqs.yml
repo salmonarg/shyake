@@ -1,0 +1,39 @@
+# Builds the liboqs cache on main, where it is readable by every
+# ref — including the tag refs that release runs execute on.
+name: Warm liboqs cache
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/actions/liboqs/**'
+      - '.github/workflows/warm-liboqs.yml'
+      - '.github/workflows/release.yml'
+
+jobs:
+  warm:
+    name: ${{ matrix.runner }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - ubuntu-22.04
+          - ubuntu-22.04-arm
+          - macos-15
+          - macos-15-intel
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            sudo apt-get update
+            sudo apt-get install -y cmake libssl-dev
+          else
+            brew install openssl@3
+          fi
+
+      - uses: ./.github/actions/liboqs

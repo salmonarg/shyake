@@ -1,0 +1,57 @@
+name: Build minimal liboqs
+description: >
+  Build a static liboqs with only ML-KEM-768 and ML-DSA-65
+  (see docs/DEV.md), cached per liboqs tag, OS and arch, and
+  install it into the prefix client/Makefile expects.
+
+inputs:
+  tag:
+    description: liboqs git tag (bump here, one place)
+    required: false
+    default: "0.14.0"
+
+runs:
+  using: composite
+  steps:
+    - name: Restore liboqs cache
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: ~/liboqs-prefix
+        key: liboqs-${{ inputs.tag }}-minimal-${{ runner.os }}-${{ runner.arch }}
+
+    # minimal build: ML-KEM-768 and ML-DSA-65 only
+    - name: Build liboqs (minimal)
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        git clone --depth 1 --single-branch -b '${{ inputs.tag }}' \
+            https://github.com/open-quantum-safe/liboqs.git "$RUNNER_TEMP/liboqs"
+        EXTRA=""
+        if [ "$RUNNER_OS" = "macOS" ]; then
+          EXTRA="-DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3)"
+        fi
+        cmake -S "$RUNNER_TEMP/liboqs" -B "$RUNNER_TEMP/liboqs/build" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DOQS_BUILD_ONLY_LIB=ON \
+            -DOQS_USE_OPENSSL=ON \
+            -DOQS_MINIMAL_BUILD="KEM_ml_kem_768;SIG_ml_dsa_65" \
+            -DCMAKE_INSTALL_LIBDIR=lib \
+            -DCMAKE_INSTALL_PREFIX="$HOME/liboqs-prefix" \
+            $EXTRA
+        cmake --build "$RUNNER_TEMP/liboqs/build" -j
+        cmake --install "$RUNNER_TEMP/liboqs/build"
+
+    # copy into the prefix client/Makefile expects
+    - name: Install liboqs
+      shell: bash
+      run: |
+        if [ "$RUNNER_OS" = "macOS" ]; then
+          PREFIX="$(brew --prefix)"
+          mkdir -p "$PREFIX/include" "$PREFIX/lib"
+          cp -R "$HOME/liboqs-prefix/include/." "$PREFIX/include/"
+          cp "$HOME/liboqs-prefix/lib/liboqs.a" "$PREFIX/lib/"
+        else
+          sudo cp -R "$HOME/liboqs-prefix/include/." /usr/local/include/
+          sudo cp "$HOME/liboqs-prefix/lib/liboqs.a" /usr/local/lib/
+        fi
