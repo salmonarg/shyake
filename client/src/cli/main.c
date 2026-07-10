@@ -7,6 +7,11 @@
 #include "shyake.h"
 #include "display.h"
 
+#ifndef SHYAKE_VERSION
+#define SHYAKE_VERSION "dev"
+#endif
+#define SHYAKE_VERSION_URL "https://shyake.eee.coffee/api/client/version"
+
 int cmd_init(const char *config_dir);
 
 char *get_config_dir(void);
@@ -336,7 +341,7 @@ int main(int argc, char *argv[])
     if (strcmp(cmd, "man") == 0) {
         if (argc < 3) {
             printf("Usage: shyake [option] [command]\n\n");
-            printf("shyake v0.2.0-indev.1 - PQC E2EE mailer\n\n");
+            printf("shyake %s - PQC E2EE mailer\n\n", SHYAKE_VERSION);
             printf("Commands:\n");
             printf("  init          Initialize\n");
             printf("  register      Register on an instance\n");
@@ -629,7 +634,7 @@ int main(int argc, char *argv[])
     }
 
     if (strcmp(cmd, "version") == 0) {
-        printf("shyake v0.2.0-indev.1\n");
+        printf("shyake %s\n", SHYAKE_VERSION);
         return EXIT_SUCCESS;
     }
 
@@ -1598,28 +1603,20 @@ int main(int argc, char *argv[])
     }
 
     if (strcmp(cmd, "update") == 0) {
+        shyake_config cfg = {
+            .config_dir = config_dir,
+            .instance_url = app_cfg->instance ? app_cfg->instance : "",
+            .username = app_cfg->username ? app_cfg->username : "",
+            .plain = global_plain,
+            .debug = global_debug,
+            .no_color = global_no_color || app_cfg->no_color
+        };
+        shyake_ctx *ctx = shyake_init_ctx(&cfg);
+
         /* update show */
         if (argc >= 3 && strcmp(argv[2], "show") == 0) {
-            const char *inst = app_cfg->instance;
-            const char *user = app_cfg->username;
-            if (!inst || !user) {
-                fprintf(stderr,
-                        "Missing INSTANCE or USERNAME in config "
-                        "file.\n");
-                free_app_config(app_cfg);
-                free(config_dir);
-                return EXIT_FAILURE;
-            }
-            shyake_config cfg = {
-                .config_dir = config_dir,
-                .instance_url = inst,
-                .username = user,
-                .plain = global_plain,
-                .debug = global_debug,
-                .no_color = global_no_color || app_cfg->no_color
-            };
-            shyake_ctx *ctx = shyake_init_ctx(&cfg);
-            shyake_version_info *info = shyake_get_latest_version(ctx);
+            shyake_version_info *info = shyake_get_latest_version(
+                ctx, SHYAKE_VERSION_URL);
             shyake_free_ctx(ctx);
             free_app_config(app_cfg);
             free(config_dir);
@@ -1641,25 +1638,8 @@ int main(int argc, char *argv[])
         }
 
         /* update (install) */
-        const char *inst = app_cfg->instance;
-        const char *user = app_cfg->username;
-        if (!inst || !user) {
-            fprintf(stderr,
-                    "Missing INSTANCE or USERNAME in config file.\n");
-            free_app_config(app_cfg);
-            free(config_dir);
-            return EXIT_FAILURE;
-        }
-        shyake_config cfg = {
-            .config_dir = config_dir,
-            .instance_url = inst,
-            .username = user,
-            .plain = global_plain,
-            .debug = global_debug,
-            .no_color = global_no_color || app_cfg->no_color
-        };
-        shyake_ctx *ctx = shyake_init_ctx(&cfg);
-        shyake_err ret = shyake_self_update(ctx, "v0.2.0");
+        shyake_err ret = shyake_self_update(ctx, SHYAKE_VERSION_URL,
+                                             SHYAKE_VERSION);
         shyake_free_ctx(ctx);
         free_app_config(app_cfg);
         free(config_dir);

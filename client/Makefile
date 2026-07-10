@@ -1,4 +1,5 @@
 CC ?= gcc
+VERSION ?= v0.2.0-indev.1
 
 # detect OS and architecture
 OS   := $(shell uname -s)
@@ -43,6 +44,7 @@ endif
 
 CFLAGS = -Wall -Wextra -std=c11 -pedantic \
          -D_POSIX_C_SOURCE=200809L -fPIC \
+         -DSHYAKE_VERSION='"$(VERSION)"' \
          -Iinclude \
          -Isrc/lib/vendor/cJSON \
          $(addprefix -I, $(SYS_INC))

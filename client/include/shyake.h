@@ -225,17 +225,20 @@ typedef struct {
 void shyake_free_version_info(shyake_version_info *v);
 
 /*
- * Query server for latest client version.
+ * Query version_url for latest client version.
  * Returns allocated shyake_version_info* on success, NULL on failure.
  */
-shyake_version_info* shyake_get_latest_version(shyake_ctx *ctx);
+shyake_version_info* shyake_get_latest_version(shyake_ctx *ctx,
+                                                const char *version_url);
 
 /*
  * Download and install the latest stable release binary.
+ * version_url: URL of the version API endpoint.
  * current_version: running version string (e.g. "v0.1.1").
  * Returns SHYAKE_OK on success.
  */
 shyake_err shyake_self_update(shyake_ctx *ctx,
+                               const char *version_url,
                                const char *current_version);
 
 #endif /* SHYAKE_H */

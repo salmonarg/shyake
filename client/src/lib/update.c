@@ -18,13 +18,9 @@ shyake_free_version_info(shyake_version_info *v)
 }
 
 shyake_version_info*
-shyake_get_latest_version(shyake_ctx *ctx)
+shyake_get_latest_version(shyake_ctx *ctx, const char *version_url)
 {
-    if (!ctx) return NULL;
-
-    char url[512];
-    snprintf(url, sizeof(url), "%s/api/client/version",
-             ctx->instance_url);
+    if (!ctx || !version_url) return NULL;
 
     CURL *curl = curl_easy_init();
     if (!curl) return NULL;
@@ -35,7 +31,7 @@ shyake_get_latest_version(shyake_ctx *ctx)
     struct curl_response resp = { .data = malloc(1), .size = 0 };
     resp.data[0] = '\0';
 
-    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_URL, version_url);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_write_cb);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&resp);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
@@ -108,11 +104,12 @@ download_to_tmp(shyake_ctx *ctx, const char *download_url,
 }
 
 shyake_err
-shyake_self_update(shyake_ctx *ctx, const char *current_version)
+shyake_self_update(shyake_ctx *ctx, const char *version_url,
+                   const char *current_version)
 {
     if (!ctx) return SHYAKE_ERR;
 
-    shyake_version_info *info = shyake_get_latest_version(ctx);
+    shyake_version_info *info = shyake_get_latest_version(ctx, version_url);
     if (!info) {
         fprintf(stderr, "Failed to fetch version info.\n");
         return SHYAKE_ERR_NETWORK;
