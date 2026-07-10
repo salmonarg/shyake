@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <termios.h>
 #include "prompt.h"
@@ -8,26 +9,47 @@
 int
 read_passphrase(const char *prompt_str, char *buf, size_t buflen)
 {
+    buf[0] = '\0';
+
+    /* CI/test automation: env var bypasses interactive prompt entirely.
+     * Avoids both stdin-consumed and no-tty problems in pipelines. */
+    const char *env_pp = getenv("SHYAKE_PASSPHRASE");
+    if (env_pp != NULL) {
+        strncpy(buf, env_pp, buflen - 1);
+        buf[buflen - 1] = '\0';
+        return 0;
+    }
+
+    /* Always read from /dev/tty so that a consumed stdin (e.g. piped
+     * body in `send`) does not cause an immediate EOF here. */
+    FILE *tty = fopen("/dev/tty", "r+");
+    if (!tty) {
+        /* No controlling terminal (CI, container): treat as empty. */
+        return 0;
+    }
+
+    fprintf(tty, "%s", prompt_str);
+    fflush(tty);
+
     struct termios old, noecho;
     int saved = 0;
-
-    fprintf(stderr, "%s", prompt_str);
-    fflush(stderr);
-
-    if (tcgetattr(STDIN_FILENO, &old) == 0) {
+    int fd = fileno(tty);
+    if (tcgetattr(fd, &old) == 0) {
         noecho = old;
         noecho.c_lflag &= ~(tcflag_t)ECHO;
-        tcsetattr(STDIN_FILENO, TCSAFLUSH, &noecho);
+        tcsetattr(fd, TCSAFLUSH, &noecho);
         saved = 1;
     }
 
-    char *result = fgets(buf, (int)buflen, stdin);
+    char *result = fgets(buf, (int)buflen, tty);
 
     if (saved) {
-        tcsetattr(STDIN_FILENO, TCSAFLUSH, &old);
-        fputs("\n", stderr);
-        fflush(stderr);
+        tcsetattr(fd, TCSAFLUSH, &old);
+        fputs("\n", tty);
+        fflush(tty);
     }
+
+    fclose(tty);
 
     if (!result) { buf[0] = '\0'; return -1; }
 
@@ -77,13 +99,14 @@ prompt_new_passphrase(shyake_ctx *ctx, const char *config_dir)
     char sk_path[512];
     snprintf(sk_path, sizeof(sk_path), "%s/kem_sk.bin", config_dir);
 
-    char prompt_str[600];
-    snprintf(prompt_str, sizeof(prompt_str),
-             "Enter passphrase for key '%s' (empty for no passphrase): ",
-             sk_path);
+    if (!getenv("SHYAKE_PASSPHRASE")) {
+        fprintf(stderr, "Key: %s\n", sk_path);
+        fflush(stderr);
+    }
 
     char pp1[512], pp2[512];
-    if (read_passphrase(prompt_str, pp1, sizeof(pp1)) != 0) {
+    if (read_passphrase("Enter passphrase (empty for no passphrase): ",
+                        pp1, sizeof(pp1)) != 0) {
         memset(pp1, 0, sizeof(pp1));
         return -1;
     }

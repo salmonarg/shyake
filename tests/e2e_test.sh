@@ -35,7 +35,7 @@ assert_exit() {
         echo -e "  ${GREEN}PASS${NC}  $name"
         PASS=$((PASS + 1))
     else
-        echo -e "  ${RED}FAIL${NC}  $name (expected exit $expected, got $actual) $extra"
+        echo -e "  ${RED}FAIL${NC}  $name (expected $expected, got $actual)"
         FAIL=$((FAIL + 1))
     fi
 }
@@ -57,12 +57,28 @@ assert_contains() {
 assert_not_contains() {
     local name="$1" pattern="$2" output="$3"
     if echo "$output" | grep -qF "$pattern"; then
-        echo -e "  ${RED}FAIL${NC}  $name (did not expect '$pattern' in output)"
+        echo -e "  ${RED}FAIL${NC}  $name (pattern found)"
         FAIL=$((FAIL + 1))
     else
         echo -e "  ${GREEN}PASS${NC}  $name"
         PASS=$((PASS + 1))
     fi
+}
+
+# init_nopass <dir>  -- init with no passphrase via env var
+init_nopass() {
+    SHYAKE_PASSPHRASE="" "$SHYAKE" init -c "$1" > /dev/null 2>&1
+}
+
+# init_withpass <dir> <passphrase>  -- init setting a passphrase via env var
+init_withpass() {
+    SHYAKE_PASSPHRASE="$2" "$SHYAKE" init -c "$1" > /dev/null 2>&1
+}
+
+# sh_run_pp <passphrase> <config_dir> <args...>  -- run with passphrase via env var
+sh_run_pp() {
+    local pp="$1" cfg="$2"; shift 2
+    SHYAKE_PASSPHRASE="$pp" "$SHYAKE" --no-color -c "$cfg" "$@"
 }
 
 # wait for server to be up
@@ -131,13 +147,18 @@ section "1. init"
 # ------------------------------------------------------------------ #
 
 INIT_DIR="$TMPDIR_ROOT/init_test"
-out=$("$SHYAKE" init -c "$INIT_DIR" 2>&1) || true
+init_nopass "$INIT_DIR" || true
 assert_exit "init creates config dir" 0 "$([ -d "$INIT_DIR" ] && echo 0 || echo 1)"
-assert_exit "init creates config file" 0 "$([ -f "$INIT_DIR/config" ] && echo 0 || echo 1)"
-assert_exit "init creates kem_pk.bin" 0 "$([ -f "$INIT_DIR/kem_pk.bin" ] && echo 0 || echo 1)"
-assert_exit "init creates sig_pk.bin" 0 "$([ -f "$INIT_DIR/sig_pk.bin" ] && echo 0 || echo 1)"
-assert_exit "init creates kem_sk.bin" 0 "$([ -f "$INIT_DIR/kem_sk.bin" ] && echo 0 || echo 1)"
-assert_exit "init creates sig_sk.bin" 0 "$([ -f "$INIT_DIR/sig_sk.bin" ] && echo 0 || echo 1)"
+assert_exit "init creates config file" 0 \
+    "$([ -f "$INIT_DIR/config" ] && echo 0 || echo 1)"
+assert_exit "init creates kem_pk.bin" 0 \
+    "$([ -f "$INIT_DIR/kem_pk.bin" ] && echo 0 || echo 1)"
+assert_exit "init creates sig_pk.bin" 0 \
+    "$([ -f "$INIT_DIR/sig_pk.bin" ] && echo 0 || echo 1)"
+assert_exit "init creates kem_sk.bin" 0 \
+    "$([ -f "$INIT_DIR/kem_sk.bin" ] && echo 0 || echo 1)"
+assert_exit "init creates sig_sk.bin" 0 \
+    "$([ -f "$INIT_DIR/sig_sk.bin" ] && echo 0 || echo 1)"
 
 # ------------------------------------------------------------------ #
 section "2. register"
@@ -150,8 +171,8 @@ USER_B="tstb${TS}"
 DIR_A="$TMPDIR_ROOT/acct_a"
 DIR_B="$TMPDIR_ROOT/acct_b"
 
-"$SHYAKE" init -c "$DIR_A" > /dev/null 2>&1
-"$SHYAKE" init -c "$DIR_B" > /dev/null 2>&1
+init_nopass "$DIR_A"
+init_nopass "$DIR_B"
 
 out_a=$(sh_run "$DIR_A" register -u "$USER_A" -i "$INSTANCE" 2>&1)
 rc=$?; assert_exit "register user A succeeds" 0 "$rc" "$out_a"
@@ -166,13 +187,13 @@ rc=$?; assert_exit "register user B succeeds" 0 "$rc" "$out_b"
 
 # Duplicate registration should fail
 out_dup=$(sh_run "$DIR_A" register -u "$USER_A" -i "$INSTANCE" 2>&1) || true
-assert_not_contains "register: duplicate fails" "egistered successfully" "$out_dup"
+assert_not_contains "register: duplicate fails" "egistered" "$out_dup"
 
 # Invalid username (too short)
-out_bad=$("$SHYAKE" init -c "$TMPDIR_ROOT/bad" > /dev/null 2>&1; \
+out_bad=$(init_nopass "$TMPDIR_ROOT/bad"; \
     sh_run "$TMPDIR_ROOT/bad" register -u "ab" -i "$INSTANCE" 2>&1) || true
 assert_not_contains "register: short username rejected" \
-    "egistered successfully" "$out_bad"
+    "egistered" "$out_bad"
 
 # ------------------------------------------------------------------ #
 section "3. whoami"
@@ -255,7 +276,7 @@ if echo "$out" | grep -qE '^[0-9]+$'; then
     echo -e "  ${GREEN}PASS${NC}  check --count: numeric output"
     PASS=$((PASS + 1))
 else
-    echo -e "  ${RED}FAIL${NC}  check --count: expected numeric output, got: $out"
+    echo -e "  ${RED}FAIL${NC}  check --count: not numeric"
     FAIL=$((FAIL + 1))
 fi
 
@@ -365,7 +386,7 @@ fi
 section "12. rotate"
 # ------------------------------------------------------------------ #
 
-out=$(sh_run "$DIR_A" rotate 2>&1)
+out=$(SHYAKE_PASSPHRASE="" sh_run "$DIR_A" rotate 2>&1)
 rc=$?; assert_exit "rotate exits 0" 0 "$rc" "$out"
 assert_contains "rotate: success message" "rotated" "$out"
 
@@ -396,7 +417,8 @@ fi
 # Non-existent user → 404
 code=$(curl -so /dev/null -w "%{http_code}" \
     "$INSTANCE/api/pubkey/nonexistent_xyz_$(date +%s)")
-assert_exit "pubkey API: 404 for unknown user" 0 "$([ "$code" = "404" ] && echo 0 || echo 1)"
+assert_exit "pubkey API: 404 for unknown user" 0 \
+    "$([ "$code" = "404" ] && echo 0 || echo 1)"
 
 # ------------------------------------------------------------------ #
 section "14. destroy"
@@ -405,7 +427,7 @@ section "14. destroy"
 # Use a fresh account so we don't destroy A or B yet
 DIR_C="$TMPDIR_ROOT/acct_c"
 USER_C="tstc${TS}"
-"$SHYAKE" init -c "$DIR_C" > /dev/null 2>&1
+init_nopass "$DIR_C"
 sh_run "$DIR_C" register -u "$USER_C" -i "$INSTANCE" > /dev/null 2>&1
 
 # destroy requires typing username to stdin
@@ -433,8 +455,8 @@ DIR_D="$TMPDIR_ROOT/acct_d"
 DIR_E="$TMPDIR_ROOT/acct_e"
 USER_D="tstd${TS}"
 USER_E="tste${TS}"
-"$SHYAKE" init -c "$DIR_D" > /dev/null 2>&1 || true
-"$SHYAKE" init -c "$DIR_E" > /dev/null 2>&1 || true
+init_nopass "$DIR_D" || true
+init_nopass "$DIR_E" || true
 sh_run "$DIR_D" register -u "$USER_D" -i "$INSTANCE" > /dev/null 2>&1 || true
 sh_run "$DIR_E" register -u "$USER_E" -i "$INSTANCE" > /dev/null 2>&1 || true
 
@@ -443,7 +465,7 @@ echo "first mail" | sh_run "$DIR_D" send -t "$USER_E" \
     -s "Cache E key" > /dev/null 2>&1 || true
 
 # E rotates keys — server now has a new pubkey for E
-sh_run "$DIR_E" rotate > /dev/null 2>&1 || true
+SHYAKE_PASSPHRASE="" sh_run "$DIR_E" rotate > /dev/null 2>&1 || true
 
 # D sends to E again — expects failure: local fingerprint mismatch
 set +e
@@ -470,8 +492,8 @@ DIR_F="$TMPDIR_ROOT/acct_f"
 DIR_G="$TMPDIR_ROOT/acct_g"
 USER_F="tstf${TS}"
 USER_G="tstg${TS}"
-"$SHYAKE" init -c "$DIR_F" > /dev/null 2>&1 || true
-"$SHYAKE" init -c "$DIR_G" > /dev/null 2>&1 || true
+init_nopass "$DIR_F" || true
+init_nopass "$DIR_G" || true
 sh_run "$DIR_F" register -u "$USER_F" -i "$INSTANCE" > /dev/null 2>&1 || true
 sh_run "$DIR_G" register -u "$USER_G" -i "$INSTANCE" > /dev/null 2>&1 || true
 
@@ -515,6 +537,115 @@ code=$(curl -so /dev/null -w "%{http_code}" \
     "$INSTANCE/api/mail?type=inbox")
 assert_exit "anti-replay: stale timestamp → 403" 0 \
     "$([ "$code" = "403" ] && echo 0 || echo 1)"
+
+# ------------------------------------------------------------------ #
+section "18. Passphrase-protected keys"
+# ------------------------------------------------------------------ #
+
+PP_PASS="hunter2-test-pp"
+DIR_PP="$TMPDIR_ROOT/acct_pp"
+USER_PP="tstpp${TS}"
+
+# 18a. init without passphrase → keys are raw binary (no SHYK magic)
+PLAIN_DIR="$TMPDIR_ROOT/plain_pp"
+init_nopass "$PLAIN_DIR"
+if [ -f "$PLAIN_DIR/kem_sk.bin" ]; then
+    magic=$(dd if="$PLAIN_DIR/kem_sk.bin" bs=4 count=1 2>/dev/null | \
+        od -A n -t x1 | tr -d ' \n')
+    if [ "$magic" != "5348594b" ]; then
+        echo -e "  ${GREEN}PASS${NC}  passphrase: no-passphrase init → raw binary key"
+        PASS=$((PASS + 1))
+    else
+        echo -e "  ${RED}FAIL${NC}  passphrase: no-passphrase init produced SHYK magic"
+        FAIL=$((FAIL + 1))
+    fi
+else
+    echo -e "  ${RED}FAIL${NC}  passphrase: plain init did not create kem_sk.bin"
+    FAIL=$((FAIL + 1))
+fi
+
+# 18b. init with passphrase → keys start with SHYK magic
+init_withpass "$DIR_PP" "$PP_PASS"
+assert_exit "passphrase: init with passphrase creates kem_sk.bin" 0 \
+    "$([ -f "$DIR_PP/kem_sk.bin" ] && echo 0 || echo 1)"
+magic_kem=$(dd if="$DIR_PP/kem_sk.bin" bs=4 count=1 2>/dev/null | \
+    od -A n -t x1 | tr -d ' \n')
+magic_sig=$(dd if="$DIR_PP/sig_sk.bin" bs=4 count=1 2>/dev/null | \
+    od -A n -t x1 | tr -d ' \n')
+if [ "$magic_kem" = "5348594b" ]; then
+    echo -e "  ${GREEN}PASS${NC}  passphrase: kem_sk.bin starts with SHYK magic"
+    PASS=$((PASS + 1))
+else
+    echo -e "  ${RED}FAIL${NC}  passphrase: kem_sk.bin missing" \
+        "SHYK magic (got $magic_kem)"
+    FAIL=$((FAIL + 1))
+fi
+if [ "$magic_sig" = "5348594b" ]; then
+    echo -e "  ${GREEN}PASS${NC}  passphrase: sig_sk.bin starts" \
+        "with SHYK magic"
+    PASS=$((PASS + 1))
+else
+    echo -e "  ${RED}FAIL${NC}  passphrase: sig_sk.bin missing" \
+        "SHYK magic (got $magic_sig)"
+    FAIL=$((FAIL + 1))
+fi
+
+# Add config and register (passphrase via env var)
+cat > "$DIR_PP/config" <<EOF
+INSTANCE=$INSTANCE
+USERNAME=$USER_PP
+TIME_FORMAT="%Y-%m-%d %H:%M"
+CHECK_COLUMNS=id,sender,subject,size,date
+NO_COLOR=1
+EOF
+
+pp_reg_out=$(sh_run_pp "$PP_PASS" "$DIR_PP" register -u "$USER_PP" -i "$INSTANCE" 2>&1)
+pp_reg_rc=$?
+assert_exit "passphrase: register with encrypted keys exits 0" 0 "$pp_reg_rc"
+
+# 18c. send from USER_A (unencrypted keys) to USER_PP → no passphrase prompt for A
+pp_send_out=$(echo "passphrase test body" | sh_run "$DIR_A" \
+    send -t "$USER_PP" -s "pp test $(date +%s)" 2>&1)
+assert_exit "passphrase: send to pp-user exits 0" 0 "$?"
+assert_contains "passphrase: send success" "sent" "$pp_send_out"
+
+# 18d. check inbox with correct passphrase
+pp_check_out=$(sh_run_pp "$PP_PASS" "$DIR_PP" check inbox 2>&1)
+assert_exit "passphrase: check inbox with correct passphrase exits 0" 0 "$?"
+assert_contains "passphrase: inbox has mail from A" "$USER_A" "$pp_check_out"
+
+# 18e. check inbox with wrong passphrase → exits non-zero
+set +e
+pp_wrong_out=$(SHYAKE_PASSPHRASE="wrong-passphrase" sh_run "$DIR_PP" check inbox 2>&1)
+pp_wrong_rc=$?
+set -e
+assert_exit "passphrase: wrong passphrase → non-zero exit" 1 "$pp_wrong_rc"
+assert_contains "passphrase: wrong passphrase message" \
+    "Incorrect passphrase" "$pp_wrong_out"
+
+# 18f. enc (uses public key only, no passphrase) → dec with correct passphrase
+ENC_IN="$TMPDIR_ROOT/enc_input.txt"
+ENC_OUT="$TMPDIR_ROOT/enc_input.txt.enc"
+echo "secret content" > "$ENC_IN"
+enc_out=$(sh_run "$DIR_PP" enc "$ENC_IN" 2>&1)
+assert_exit "passphrase: enc (own pub key) exits 0" 0 "$?"
+assert_exit "passphrase: enc produces .enc file" 0 \
+    "$([ -f "$ENC_OUT" ] && echo 0 || echo 1)"
+
+DEC_OUT="$TMPDIR_ROOT/dec_output.txt"
+sh_run_pp "$PP_PASS" "$DIR_PP" dec "$ENC_OUT" -o "$DEC_OUT" > /dev/null 2>&1
+assert_exit "passphrase: dec with correct passphrase exits 0" 0 "$?"
+assert_exit "passphrase: dec output file exists" 0 \
+    "$([ -f "$DEC_OUT" ] && echo 0 || echo 1)"
+dec_content=$(cat "$DEC_OUT" 2>/dev/null || true)
+assert_contains "passphrase: dec output matches original" "secret content" "$dec_content"
+
+# 18g. send with encrypted keys piping body via stdin
+#      SHYAKE_PASSPHRASE is set so read_passphrase never touches /dev/tty
+pp_send2_out=$(echo "reply body" | sh_run_pp "$PP_PASS" "$DIR_PP" \
+    send -t "$USER_A" -s "reply test" 2>&1)
+assert_exit "passphrase: send with encrypted keys (piped body) exits 0" 0 "$?"
+assert_contains "passphrase: send with encrypted keys success" "sent" "$pp_send2_out"
 
 # ------------------------------------------------------------------ #
 # Summary

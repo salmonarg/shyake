@@ -128,14 +128,15 @@ int cmd_init(const char *config_dir)
         char kem_sk_path[512];
         snprintf(kem_sk_path, sizeof(kem_sk_path),
                  "%s/kem_sk.bin", config_dir);
-        char prompt_str[600];
-        snprintf(prompt_str, sizeof(prompt_str),
-                 "Enter passphrase for key '%s'"
-                 " (empty for no passphrase): ", kem_sk_path);
+        if (!getenv("SHYAKE_PASSPHRASE")) {
+            fprintf(stderr, "Key: %s\n", kem_sk_path);
+            fflush(stderr);
+        }
         char pp1[512], pp2[512];
         memset(pp1, 0, sizeof(pp1));
         memset(pp2, 0, sizeof(pp2));
-        if (read_passphrase(prompt_str, pp1, sizeof(pp1)) != 0) {
+        if (read_passphrase("Enter passphrase (empty for no passphrase): ",
+                            pp1, sizeof(pp1)) != 0) {
             shyake_free_ctx(ctx);
             free(allocated);
             return 1;
