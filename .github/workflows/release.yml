@@ -1,0 +1,103 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+env:
+  # pin for reproducible builds; bump deliberately
+  LIBOQS_TAG: "0.14.0"
+
+jobs:
+  build:
+    name: ${{ matrix.artifact }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            artifact: shyake-linux-x86_64
+          - runner: ubuntu-22.04-arm
+            artifact: shyake-linux-aarch64
+          - runner: macos-15
+            artifact: shyake-darwin-arm64
+          - runner: macos-15-intel
+            artifact: shyake-darwin-x86_64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            sudo apt-get update
+            sudo apt-get install -y cmake libcurl4-openssl-dev libssl-dev
+          else
+            brew install openssl@3
+          fi
+
+      - name: Restore liboqs cache
+        id: liboqs-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/liboqs-prefix
+          key: liboqs-${{ env.LIBOQS_TAG }}-minimal-${{ runner.os }}-${{ runner.arch }}
+
+      # minimal build: ML-KEM-768 and ML-DSA-65 only (see docs/DEV.md)
+      - name: Build liboqs (minimal)
+        if: steps.liboqs-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --single-branch -b "$LIBOQS_TAG" \
+              https://github.com/open-quantum-safe/liboqs.git
+          EXTRA=""
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            EXTRA="-DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3)"
+          fi
+          cmake -S liboqs -B liboqs/build \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DOQS_BUILD_ONLY_LIB=ON \
+              -DOQS_USE_OPENSSL=ON \
+              -DOQS_MINIMAL_BUILD="KEM_ml_kem_768;SIG_ml_dsa_65" \
+              -DCMAKE_INSTALL_LIBDIR=lib \
+              -DCMAKE_INSTALL_PREFIX="$HOME/liboqs-prefix" \
+              $EXTRA
+          cmake --build liboqs/build -j
+          cmake --install liboqs/build
+
+      # copy into the prefix client/Makefile expects
+      - name: Install liboqs
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            PREFIX="$(brew --prefix)"
+            mkdir -p "$PREFIX/include" "$PREFIX/lib"
+            cp -R "$HOME/liboqs-prefix/include/." "$PREFIX/include/"
+            cp "$HOME/liboqs-prefix/lib/liboqs.a" "$PREFIX/lib/"
+          else
+            sudo cp -R "$HOME/liboqs-prefix/include/." /usr/local/include/
+            sudo cp "$HOME/liboqs-prefix/lib/liboqs.a" /usr/local/lib/
+          fi
+
+      - name: Build client
+        run: make -C client VERSION='${{ github.event.release.tag_name }}'
+
+      - name: Run crypto tests
+        run: make -C client test
+
+      - name: Package
+        run: |
+          STAGE="$(mktemp -d)/${{ matrix.artifact }}"
+          mkdir -p "$STAGE"
+          cp client/bin/shyake LICENSE README.md "$STAGE/"
+          tar -C "$(dirname "$STAGE")" -czf '${{ matrix.artifact }}.tar.gz' \
+              '${{ matrix.artifact }}'
+
+      - name: Upload release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload '${{ github.event.release.tag_name }}' \
+              '${{ matrix.artifact }}.tar.gz' --clobber
