@@ -103,6 +103,14 @@ shyake check saved
 shyake check saved fQBjZnvJ56
 ```
 
+To list local encrypted drafts (see the compose command below), or
+decrypt and display one in full:
+
+```sh
+shyake check drafts
+shyake check drafts 3
+```
+
 **Send command**:
 
 ```sh
@@ -142,6 +150,55 @@ base64 image.png | shyake send -t flat_white -s "image.png"
 # send a small archive
 tar czf - ./source | base64 | shyake send -t flat_white -s "source.tar.gz"
 ```
+
+**Compose command (drafts & diary)**:
+
+The classic `ed` and `vi` editors once shipped with built-in
+encryption; today only NetBSD keeps it, since the underlying
+`crypt()` scheme is long broken. `compose` revives that spirit with
+post-quantum cryptography: it opens your editor on a small template
+and stores the result as a draft under `~/.config/shyake/drafts/`,
+encrypted to your own key with ML-KEM-768 + ChaCha20-Poly1305.
+
+```sh
+shyake compose
+```
+
+```
+To: flat_white
+Subject: Coffee tomorrow?
+---
+The mail body goes here.
+```
+
+Recipient, subject, and body are all encrypted at rest. Saving a
+draft needs no passphrase (only your public key is used); listing or
+reading drafts requires unlocking your secret key.
+
+Leave `To:` empty and the draft becomes a private diary entry —
+`check drafts` shows it as `(diary)`:
+
+```sh
+shyake compose            # write a diary entry, leave To: empty
+shyake check drafts       # list entries
+shyake check drafts 3     # read entry 3
+shyake compose 3          # continue writing entry 3
+```
+
+To send a draft, use `send --draft`. The recipient and subject come
+from the draft (`-t`/`-s` override them), and the draft is deleted
+after a successful send:
+
+```sh
+shyake send --draft 3
+shyake send --draft 3 -t flat_white
+```
+
+The editor defaults to `vim`, invoked with `-n -i NONE` so no
+plaintext leaks into swap files. Set the `EDITOR` key in the config
+file, or the `$VISUAL`/`$EDITOR` environment variables, to use
+another editor. Drafts are plain local files; to delete one, just
+remove `~/.config/shyake/drafts/<id>.json`.
 
 **Fetch command**:
 

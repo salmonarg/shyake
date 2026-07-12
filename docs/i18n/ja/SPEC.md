@@ -208,6 +208,30 @@ GET:/api/mail?type=inbox:salmon:1749513600
 パスフレーズは対話的に入力（ターミナルエコー無効）するか、非対話用途では `SHYAKE_PASSPHRASE` 環境変数で渡します。
 `rotate` は現在のパスフレーズと新しいパスフレーズの入力を求め、新しい鍵ペアはサーバーがローテーションを確認した後にのみ、新しいパスフレーズで保存されます。
 
+#### 3.8 ローカル暗号化下書き
+
+`shyake compose` は下書き（私的な日記としても使えます）を設定ディレクトリ内の `drafts/<id>.json` に保存します。下書きがサーバーに触れることはありません。各下書きはメールと同じハイブリッド方式（§3.2）を使用します：ランダムな 32 バイトの対称鍵が各フィールドを ChaCha20-Poly1305 で暗号化し、その鍵はユーザー自身の KEM 公開鍵に ML-KEM-768 でカプセル化されます。
+
+```json
+{
+  "version": 1,
+  "draft_id": "3",
+  "created": 1752400000,
+  "updated": 1752400000,
+  "size": 123,
+  "enc_key": "<b64: kem_ct || (sym_key XOR ss)>",
+  "enc_recipient": "<b64: nonce||ct||mac>",
+  "enc_subject": "<b64: nonce||ct||mac>",
+  "enc_body": "<b64: nonce||ct||mac>"
+}
+```
+
+宛先・件名・本文はすべて暗号化された状態で保存されます。平文なのはタイムスタンプ、サイズ、id だけです。空の `enc_recipient` / `enc_subject` 文字列は空フィールドを表します——宛先のない下書きは日記のエントリです。
+
+保存には公開鍵しか必要ないため、`compose` はパスフレーズ不要です。一覧表示・閲覧・編集・送信には KEM 秘密鍵のアンロックが必要です。下書き id はローカルで割り当てられる小さな整数です（既存の最大 id + 1、`O_EXCL` で作成）。
+
+compose のエディタが扱う平文一時ファイルは `mkstemp`（モード 0600）で設定ディレクトリ内に作成されます——`/tmp` は決して使いません。終了後、ファイルはゼロで上書きされてから削除されます。エディタが `vim`/`nvim` の場合は `-n -i NONE` 付きで起動され、平文が swap や viminfo に漏れることはありません。
+
 ---
 
 ### 4. データベーススキーマ
@@ -390,7 +414,7 @@ void shyake_set_new_passphrase(shyake_ctx *ctx, const char *pp);
 
 API グループ：コンテキストのライフサイクル、鍵生成、PoW 生成、登録、メール（`shyake_send`、`shyake_check`、`shyake_fetch`、
 `shyake_check_one`、`shyake_burn`）、ローカル保存メール（`shyake_save_mail`、`shyake_read_saved`、
-`shyake_check_saved_one`、`shyake_list_saved`）、アカウント（`shyake_block`、`shyake_rotate`、`shyake_destroy`）、フィンガープリント（`shyake_fingerprint`）、単体ファイル暗号化（`shyake_enc_file`、`shyake_dec_file`）、自己更新（`shyake_get_latest_version`、`shyake_version_cmp`、
+`shyake_check_saved_one`、`shyake_list_saved`）、ローカル下書き（`shyake_save_draft`、`shyake_list_drafts`、`shyake_read_draft`、`shyake_delete_draft`）、アカウント（`shyake_block`、`shyake_rotate`、`shyake_destroy`）、フィンガープリント（`shyake_fingerprint`）、単体ファイル暗号化（`shyake_enc_file`、`shyake_dec_file`）、自己更新（`shyake_get_latest_version`、`shyake_version_cmp`、
 `shyake_self_update`）。
 
 共有ライブラリ（`libshyake.so` / `libshyake.dylib`）はサードパーティの FFI 利用者向けです。CLI バイナリは単一ファイル配布のため、静的アーカイブ（`libshyake.a`）にリンクされます。
@@ -409,6 +433,7 @@ API グループ：コンテキストのライフサイクル、鍵生成、PoW 
 | `kem_sk.bin` / `sig_sk.bin` | 秘密鍵（生バイトまたは `SHYK`、§3.7） |
 | `known_hosts` | 1 行につき `username fingerprint kem_pubkey` |
 | `saved/<id>.json` | `shyake save` で保存された暗号化メール |
+| `drafts/<id>.json` | `shyake compose` が書き込む暗号化下書き（§3.8） |
 
 `saved/<id>.json` は `GET /api/mail/:id` が返す暗号文 JSON
 そのままであり、`shyake read` の実行時にのみ復号されます。
@@ -425,6 +450,7 @@ API グループ：コンテキストのライフサイクル、鍵生成、PoW 
 | `CHECK_COLUMNS` | `id,sender,subject,size,date` | `check` のレイアウト |
 | `NO_COLOR` | `0` | `1` で ANSI カラーを無効化 |
 | `DEFAULT_ACTION` | `0` | 0=man、1=check inbox、2=inbox --count |
+| `EDITOR` | — | `compose` 用エディタ（`$VISUAL`、`$EDITOR`、`vim` の順にフォールバック） |
 
 認識される環境変数：
 
@@ -454,9 +480,12 @@ API グループ：コンテキストのライフサイクル、鍵生成、PoW 
 | `register -u <user> -i <url>` | インスタンスに登録 |
 | `whoami` | 現在のプロファイルを表示（ネットワーク不使用） |
 | `send -t <to> [-s <subj>] [file]` | メールを送信（テキストのみ） |
+| `send --draft <id> [-t <to>] [-s <subj>]` | 保存済み下書きを送信（成功時に削除） |
+| `compose [<id>]` | 暗号化下書きの作成・編集（§3.8） |
 | `check inbox\|sent [opts]` | メールボックスのメタデータを一覧表示 |
 | `check <id>` | 単一メールのヘッダーを確認 |
 | `check saved [<id>]` | ローカル保存メールの一覧／確認 |
+| `check drafts [<id>]` | 下書きの一覧／復号して全文表示 |
 | `fetch [-r] <id>` | メールを復号して表示 |
 | `save <id>` | 暗号化メールをローカルに保存 |
 | `read [-r] <id>` | 保存済みメールを復号して表示 |

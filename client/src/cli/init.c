@@ -28,6 +28,9 @@ static const char *default_config =
     "CHECK_COLUMNS=id,sender,subject,size,date\n\n"
     "# Disable colors (1 = disable)\n"
     "# NO_COLOR=0\n\n"
+    "# Editor for 'shyake compose' (default: vim)\n"
+    "# Falls back to $VISUAL, then $EDITOR\n"
+    "# EDITOR=\"vim\"\n\n"
     "# Default action when running without arguments\n"
     "# 0 = man, 1 = check inbox, 2 = check inbox --count\n"
     "DEFAULT_ACTION=0\n";

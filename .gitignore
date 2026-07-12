@@ -2,9 +2,11 @@
 .antigravitycli
 .claude
 
+docs/archives/
 client/obj/
 client/bin/
 client/lib/
+client/tests/accounts/
 
 node_modules/
 dist/

@@ -204,6 +204,30 @@ PoW 令牌，SHA-1 难度为 **20 位**：
 
 口令通过交互式提示输入（终端回显关闭），或通过`SHYAKE_PASSPHRASE` 环境变量非交互式提供。`rotate` 会提示输入当前口令和新口令；新密钥对仅在服务器确认轮换后才以新口令保存。
 
+#### 3.8 本地加密草稿
+
+`shyake compose` 将草稿（兼作私密日记）存储在配置目录下的 `drafts/<id>.json` 中。草稿永远不会接触服务器。每份草稿使用与邮件相同的混合方案（§3.2）：随机的 32 字节对称密钥用 ChaCha20-Poly1305 加密各个字段，该密钥再通过 ML-KEM-768 封装到用户自己的 KEM 公钥。
+
+```json
+{
+  "version": 1,
+  "draft_id": "3",
+  "created": 1752400000,
+  "updated": 1752400000,
+  "size": 123,
+  "enc_key": "<b64: kem_ct || (sym_key XOR ss)>",
+  "enc_recipient": "<b64: nonce||ct||mac>",
+  "enc_subject": "<b64: nonce||ct||mac>",
+  "enc_body": "<b64: nonce||ct||mac>"
+}
+```
+
+收件人、主题和正文在磁盘上全部加密；只有时间戳、大小和 id 是明文。空的 `enc_recipient` / `enc_subject` 字符串表示该字段为空——没有收件人的草稿就是一篇日记。
+
+由于保存只需要公钥，`compose` 不需要口令；列出、阅读、编辑和发送草稿则需要解锁 KEM 私钥。草稿 id 是本地分配的小整数（现有最大 id + 1，用 `O_EXCL` 创建）。
+
+compose 编辑器操作的明文临时文件由 `mkstemp` 创建（权限 0600），位于配置目录内——绝不使用 `/tmp`。结束后该文件会被零覆写并删除。当编辑器为 `vim`/`nvim` 时，以 `-n -i NONE` 启动，确保明文不会泄漏到 swap 或 viminfo 文件中。
+
 ---
 
 ### 4. 数据库模式
@@ -378,7 +402,7 @@ void shyake_set_new_passphrase(shyake_ctx *ctx, const char *pp);
 | `SHYAKE_ERR_CRYPTO` | 密码学操作失败 |
 | `SHYAKE_ERR_NO_INSTANCE` | 未配置实例 URL |
 
-API 分组：上下文生命周期、密钥生成、PoW 铸造、注册、邮件（`shyake_send`、`shyake_check`、`shyake_fetch`、`shyake_check_one`、`shyake_burn`）、本地保存的邮件（`shyake_save_mail`、`shyake_read_saved`、`shyake_check_saved_one`、`shyake_list_saved`）、账户（`shyake_block`、`shyake_rotate`、`shyake_destroy`）、指纹（`shyake_fingerprint`）、独立文件加密（`shyake_enc_file`、`shyake_dec_file`），以及自更新（`shyake_get_latest_version`、`shyake_version_cmp`、`shyake_self_update`）。
+API 分组：上下文生命周期、密钥生成、PoW 铸造、注册、邮件（`shyake_send`、`shyake_check`、`shyake_fetch`、`shyake_check_one`、`shyake_burn`）、本地保存的邮件（`shyake_save_mail`、`shyake_read_saved`、`shyake_check_saved_one`、`shyake_list_saved`）、本地草稿（`shyake_save_draft`、`shyake_list_drafts`、`shyake_read_draft`、`shyake_delete_draft`）、账户（`shyake_block`、`shyake_rotate`、`shyake_destroy`）、指纹（`shyake_fingerprint`）、独立文件加密（`shyake_enc_file`、`shyake_dec_file`），以及自更新（`shyake_get_latest_version`、`shyake_version_cmp`、`shyake_self_update`）。
 
 共享库（`libshyake.so` / `libshyake.dylib`）面向第三方 FFI
 使用者。CLI 二进制文件链接静态归档（`libshyake.a`）以实现单文件分发。
@@ -397,6 +421,7 @@ API 分组：上下文生命周期、密钥生成、PoW 铸造、注册、邮件
 | `kem_sk.bin` / `sig_sk.bin` | 私钥（原始字节或 `SHYK`，§3.7） |
 | `known_hosts` | 每行 `username fingerprint kem_pubkey` |
 | `saved/<id>.json` | 由 `shyake save` 保存的加密邮件 |
+| `drafts/<id>.json` | 由 `shyake compose` 写入的加密草稿（§3.8） |
 
 `saved/<id>.json` 是 `GET /api/mail/:id` 返回的原样密文 JSON；它仅在执行 `shyake read` 时才被解密。
 
@@ -412,6 +437,7 @@ API 分组：上下文生命周期、密钥生成、PoW 铸造、注册、邮件
 | `CHECK_COLUMNS` | `id,sender,subject,size,date` | `check` 列布局 |
 | `NO_COLOR` | `0` | 设为 `1` 以禁用 ANSI 颜色 |
 | `DEFAULT_ACTION` | `0` | 0=man，1=check inbox，2=inbox --count |
+| `EDITOR` | — | `compose` 使用的编辑器（依次回退到 `$VISUAL`、`$EDITOR`、`vim`） |
 
 识别的环境变量：
 
@@ -441,9 +467,12 @@ API 分组：上下文生命周期、密钥生成、PoW 铸造、注册、邮件
 | `register -u <user> -i <url>` | 在实例上注册 |
 | `whoami` | 打印当前配置文件（无网络请求） |
 | `send -t <to> [-s <subj>] [file]` | 发送邮件（仅文本） |
+| `send --draft <id> [-t <to>] [-s <subj>]` | 发送已存草稿（成功后删除） |
+| `compose [<id>]` | 撰写或编辑加密草稿（§3.8） |
 | `check inbox\|sent [opts]` | 列出邮件箱元数据 |
 | `check <id>` | 查看单封邮件的邮件头 |
 | `check saved [<id>]` | 列出/查看本地保存的邮件 |
+| `check drafts [<id>]` | 列出草稿/解密并显示单份草稿 |
 | `fetch [-r] <id>` | 解密并打印邮件 |
 | `save <id>` | 在本地存储加密邮件 |
 | `read [-r] <id>` | 解密并打印已保存的邮件 |

@@ -91,6 +91,13 @@ shyake check saved
 shyake check saved fQBjZnvJ56
 ```
 
+ローカルの暗号化下書きの一覧表示（後述の compose コマンドを参照）や、下書きの復号・全文表示には：
+
+```sh
+shyake check drafts
+shyake check drafts 3
+```
+
 **send コマンド**：
 
 ```sh
@@ -130,6 +137,41 @@ base64 image.png | shyake send -t flat_white -s "image.png"
 # 小さなアーカイブを送る
 tar czf - ./source | base64 | shyake send -t flat_white -s "source.tar.gz"
 ```
+
+**compose コマンド（下書きと日記）**：
+
+かつての `ed` や `vi` エディタには暗号化機能が組み込まれていました。現在それを残しているのは NetBSD だけです——基盤となる `crypt()` 方式はとうに破られているためです。`compose` はその精神をポスト量子暗号で蘇らせます。エディタで小さなテンプレートを開き、結果を ML-KEM-768 + ChaCha20-Poly1305 で自分自身の鍵に暗号化して `~/.config/shyake/drafts/` に下書きとして保存します。
+
+```sh
+shyake compose
+```
+
+```
+To: flat_white
+Subject: Coffee tomorrow?
+---
+The mail body goes here.
+```
+
+宛先・件名・本文はすべて暗号化された状態でディスクに置かれます。下書きの保存にパスフレーズは不要です（公開鍵のみを使用）。一覧表示や閲覧には秘密鍵のアンロックが必要です。
+
+`To:` を空欄にすると、その下書きは私的な日記になります。`check drafts` では `(diary)` と表示されます：
+
+```sh
+shyake compose            # 日記を書く（To: は空欄のまま）
+shyake check drafts       # エントリの一覧
+shyake check drafts 3     # エントリ 3 を読む
+shyake compose 3          # エントリ 3 の続きを書く
+```
+
+下書きを送信するには `send --draft` を使います。宛先と件名は下書きから取られ（`-t`/`-s` で上書き可能）、送信に成功すると下書きは自動的に削除されます：
+
+```sh
+shyake send --draft 3
+shyake send --draft 3 -t flat_white
+```
+
+エディタのデフォルトは `vim` で、平文がスワップファイルに漏れないよう `-n -i NONE` 付きで起動されます。設定ファイルの `EDITOR` キー、または環境変数 `$VISUAL`/`$EDITOR` で別のエディタを指定できます。下書きはただのローカルファイルなので、削除したい場合は `~/.config/shyake/drafts/<id>.json` を直接削除してください。
 
 **fetch コマンド**：
 

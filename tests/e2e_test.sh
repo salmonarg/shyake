@@ -648,6 +648,159 @@ assert_exit "passphrase: send with encrypted keys (piped body) exits 0" 0 "$?"
 assert_contains "passphrase: send with encrypted keys success" "sent" "$pp_send2_out"
 
 # ------------------------------------------------------------------ #
+section "19. compose / drafts"
+# ------------------------------------------------------------------ #
+
+# Fake editors: write a fixed draft into the temp file ($1)
+FAKE_ED="$TMPDIR_ROOT/fake_editor.sh"
+cat > "$FAKE_ED" <<EOF
+#!/bin/sh
+cat > "\$1" <<'DRAFT'
+To: $USER_B
+Subject: Draft subject
+---
+Draft body content
+DRAFT
+EOF
+chmod +x "$FAKE_ED"
+
+FAKE_ED_DIARY="$TMPDIR_ROOT/fake_editor_diary.sh"
+cat > "$FAKE_ED_DIARY" <<'EOF'
+#!/bin/sh
+cat > "$1" <<'DRAFT'
+To:
+Subject: Dear diary
+---
+Today I revived the spirit of ed/vi encryption.
+DRAFT
+EOF
+chmod +x "$FAKE_ED_DIARY"
+
+FAKE_ED_EDIT="$TMPDIR_ROOT/fake_editor_edit.sh"
+cat > "$FAKE_ED_EDIT" <<EOF
+#!/bin/sh
+cat > "\$1" <<'DRAFT'
+To: $USER_B
+Subject: Draft subject
+---
+Edited body content
+DRAFT
+EOF
+chmod +x "$FAKE_ED_EDIT"
+
+# 19a. compose creates an encrypted draft
+out=$(EDITOR="$FAKE_ED" VISUAL="$FAKE_ED" sh_run "$DIR_A" compose 2>&1)
+rc=$?; assert_exit "compose exits 0" 0 "$rc" "$out"
+assert_contains "compose: saved message" "saved" "$out"
+DRAFT_ID=$(echo "$out" | grep -oE 'Draft [0-9]+' | awk '{print $2}' | head -1)
+assert_exit "compose: draft file exists" 0 \
+    "$([ -f "$DIR_A/drafts/$DRAFT_ID.json" ] && echo 0 || echo 1)"
+
+# 19b. nothing sensitive in plaintext on disk
+draft_raw=$(cat "$DIR_A/drafts/$DRAFT_ID.json" 2>/dev/null || true)
+assert_not_contains "drafts: body encrypted on disk" \
+    "Draft body content" "$draft_raw"
+assert_not_contains "drafts: subject encrypted on disk" \
+    "Draft subject" "$draft_raw"
+assert_not_contains "drafts: recipient encrypted on disk" \
+    "$USER_B" "$draft_raw"
+
+# 19c. check drafts lists with decrypted metadata
+out=$(sh_run "$DIR_A" check drafts 2>&1)
+assert_exit "check drafts exits 0" 0 "$?"
+assert_contains "check drafts: subject decrypted" "Draft subject" "$out"
+assert_contains "check drafts: recipient shown" "$USER_B" "$out"
+
+# 19d. check drafts <id> shows full decrypted content
+out=$(sh_run "$DIR_A" check drafts "$DRAFT_ID" 2>&1)
+assert_exit "check drafts <id> exits 0" 0 "$?"
+assert_contains "check drafts <id>: body decrypted" \
+    "Draft body content" "$out"
+
+# 19e. diary draft (empty To) lists as (diary), refuses send without -t
+out=$(EDITOR="$FAKE_ED_DIARY" VISUAL="$FAKE_ED_DIARY" \
+    sh_run "$DIR_A" compose 2>&1)
+rc=$?; assert_exit "compose diary exits 0" 0 "$rc" "$out"
+DIARY_ID=$(echo "$out" | grep -oE 'Draft [0-9]+' | awk '{print $2}' | head -1)
+out=$(sh_run "$DIR_A" check drafts 2>&1)
+assert_contains "check drafts: diary marker" "(diary)" "$out"
+set +e
+out=$(sh_run "$DIR_A" send --draft "$DIARY_ID" 2>&1)
+rc=$?
+set -e
+assert_exit "send --draft diary without -t fails" 1 "$rc"
+assert_contains "send --draft: no-recipient message" "no recipient" "$out"
+
+# 19f. compose <id> edits in place, created timestamp preserved
+created_before=$(python3 -c "import json; \
+    print(json.load(open('$DIR_A/drafts/$DRAFT_ID.json'))['created'])")
+out=$(EDITOR="$FAKE_ED_EDIT" VISUAL="$FAKE_ED_EDIT" \
+    sh_run "$DIR_A" compose "$DRAFT_ID" 2>&1)
+rc=$?; assert_exit "compose <id> exits 0" 0 "$rc" "$out"
+created_after=$(python3 -c "import json; \
+    print(json.load(open('$DIR_A/drafts/$DRAFT_ID.json'))['created'])")
+assert_exit "compose <id>: created preserved" 0 \
+    "$([ "$created_before" = "$created_after" ] && echo 0 || echo 1)"
+out=$(sh_run "$DIR_A" check drafts "$DRAFT_ID" 2>&1)
+assert_contains "compose <id>: body updated" "Edited body content" "$out"
+
+# 19g. unchanged template aborts without creating a draft
+n_before=$(ls "$DIR_A/drafts" | wc -l)
+set +e
+out=$(EDITOR="true" VISUAL="true" sh_run "$DIR_A" compose 2>&1)
+rc=$?
+set -e
+assert_exit "compose unchanged template exits non-zero" 1 "$rc"
+assert_contains "compose: aborted message" "aborted" "$out"
+n_after=$(ls "$DIR_A/drafts" | wc -l)
+assert_exit "compose aborted: no new draft file" 0 \
+    "$([ "$n_before" = "$n_after" ] && echo 0 || echo 1)"
+
+# 19h. send --draft delivers and deletes the draft
+out=$(sh_run "$DIR_A" send --draft "$DRAFT_ID" 2>&1)
+rc=$?; assert_exit "send --draft exits 0" 0 "$rc" "$out"
+assert_contains "send --draft: sent" "sent" "$out"
+assert_contains "send --draft: deleted" "deleted" "$out"
+assert_exit "send --draft: draft file removed" 0 \
+    "$([ ! -f "$DIR_A/drafts/$DRAFT_ID.json" ] && echo 0 || echo 1)"
+out=$(sh_run "$DIR_B" check inbox 2>&1)
+assert_contains "send --draft: recipient received it" \
+    "Draft subject" "$out"
+
+# 19i. diary draft sends with -t override
+# (target is B: A rotated keys in section 12, so A's own known_hosts
+#  entry for itself is stale and a send-to-self would 409)
+out=$(sh_run "$DIR_A" send --draft "$DIARY_ID" -t "$USER_B" 2>&1)
+rc=$?; assert_exit "send --draft with -t override exits 0" 0 "$rc" "$out"
+assert_contains "send --draft -t: sent" "sent" "$out"
+
+# 19j. unknown draft id fails cleanly
+set +e
+out=$(sh_run "$DIR_A" send --draft 9999 2>&1)
+rc=$?
+set -e
+assert_exit "send --draft unknown id fails" 1 "$rc"
+assert_contains "send --draft: not-found message" "not found" "$out"
+
+# 19k. passphrase-protected account: compose needs no passphrase,
+#      reading drafts does
+out=$(EDITOR="$FAKE_ED_DIARY" VISUAL="$FAKE_ED_DIARY" \
+    sh_run "$DIR_PP" compose 2>&1)
+rc=$?; assert_exit "compose with encrypted keys (no passphrase)" 0 \
+    "$rc" "$out"
+out=$(sh_run_pp "$PP_PASS" "$DIR_PP" check drafts 2>&1)
+assert_exit "check drafts with correct passphrase exits 0" 0 "$?"
+assert_contains "check drafts: pp draft listed" "Dear diary" "$out"
+set +e
+out=$(SHYAKE_PASSPHRASE="wrong-passphrase" \
+    sh_run "$DIR_PP" check drafts 2>&1)
+rc=$?
+set -e
+assert_exit "check drafts with wrong passphrase fails" 1 "$rc"
+assert_contains "check drafts: wrong passphrase message" \
+    "Incorrect passphrase" "$out"
+
+# ------------------------------------------------------------------ #
 # Summary
 # ------------------------------------------------------------------ #
 

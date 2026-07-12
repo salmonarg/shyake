@@ -245,6 +245,45 @@ non-interactive use. `rotate` prompts for the current passphrase and
 a new one; the new key pairs are saved under the new passphrase only
 after the server confirms the rotation.
 
+#### 3.8 Local Encrypted Drafts
+
+`shyake compose` stores drafts (which double as a private diary) in
+`drafts/<id>.json` inside the config directory. Drafts never touch
+the server. Each draft uses the same hybrid scheme as mail (§3.2):
+a random 32-byte symmetric key encrypts each field with
+ChaCha20-Poly1305, and the key is ML-KEM-768-encapsulated to the
+user's own KEM public key.
+
+```json
+{
+  "version": 1,
+  "draft_id": "3",
+  "created": 1752400000,
+  "updated": 1752400000,
+  "size": 123,
+  "enc_key": "<b64: kem_ct || (sym_key XOR ss)>",
+  "enc_recipient": "<b64: nonce||ct||mac>",
+  "enc_subject": "<b64: nonce||ct||mac>",
+  "enc_body": "<b64: nonce||ct||mac>"
+}
+```
+
+Recipient, subject, and body are all encrypted at rest; only
+timestamps, size, and the id are plaintext. An empty
+`enc_recipient` / `enc_subject` string denotes an empty field — a
+draft without a recipient is a diary entry.
+
+Because saving only needs the public key, `compose` requires no
+passphrase; listing, reading, editing, and sending a draft require
+unlocking the KEM secret key. Draft ids are small integers allocated
+locally (max existing id + 1, created with `O_EXCL`).
+
+The compose editor works on a plaintext temp file created with
+`mkstemp` (mode 0600) inside the config directory — never `/tmp`.
+The file is zero-overwritten and unlinked afterwards. When the
+editor is `vim`/`nvim`, it is invoked with `-n -i NONE` so no
+plaintext leaks into swap or viminfo files.
+
 ---
 
 ### 4. Database Schema
@@ -458,7 +497,9 @@ API groups: context lifecycle, key generation, PoW minting,
 registration, mail (`shyake_send`, `shyake_check`, `shyake_fetch`,
 `shyake_check_one`, `shyake_burn`), local saved mail
 (`shyake_save_mail`, `shyake_read_saved`, `shyake_check_saved_one`,
-`shyake_list_saved`), account (`shyake_block`, `shyake_rotate`,
+`shyake_list_saved`), local drafts (`shyake_save_draft`,
+`shyake_list_drafts`, `shyake_read_draft`, `shyake_delete_draft`),
+account (`shyake_block`, `shyake_rotate`,
 `shyake_destroy`), fingerprints (`shyake_fingerprint`), standalone
 file encryption (`shyake_enc_file`, `shyake_dec_file`), and
 self-update (`shyake_get_latest_version`, `shyake_version_cmp`,
@@ -482,6 +523,7 @@ path specified with `-c` / `--config`.
 | `kem_sk.bin` / `sig_sk.bin` | Secret keys (raw or `SHYK`, §3.7) |
 | `known_hosts` | `username fingerprint kem_pubkey` per line |
 | `saved/<id>.json` | Encrypted mail saved by `shyake save` |
+| `drafts/<id>.json` | Encrypted drafts written by `shyake compose` (§3.8) |
 
 `saved/<id>.json` is the verbatim ciphertext JSON returned by
 `GET /api/mail/:id`; it is decrypted only on `shyake read`.
@@ -498,6 +540,7 @@ Key `config` fields:
 | `CHECK_COLUMNS` | `id,sender,subject,size,date` | `check` layout |
 | `NO_COLOR` | `0` | Set `1` to disable ANSI colors |
 | `DEFAULT_ACTION` | `0` | 0=man, 1=check inbox, 2=inbox --count |
+| `EDITOR` | — | Editor for `compose` (falls back to `$VISUAL`, `$EDITOR`, then `vim`) |
 
 Recognized environment variables:
 
@@ -527,9 +570,12 @@ Recognized environment variables:
 | `register -u <user> -i <url>` | Register on an instance |
 | `whoami` | Print current profile (no network) |
 | `send -t <to> [-s <subj>] [file]` | Send a mail (text only) |
+| `send --draft <id> [-t <to>] [-s <subj>]` | Send a stored draft (deleted on success) |
+| `compose [<id>]` | Compose or edit an encrypted draft (§3.8) |
 | `check inbox\|sent [opts]` | List mailbox metadata |
 | `check <id>` | Inspect a single mail header |
 | `check saved [<id>]` | List / inspect locally saved mail |
+| `check drafts [<id>]` | List drafts / decrypt and display one |
 | `fetch [-r] <id>` | Decrypt and print a mail |
 | `save <id>` | Store encrypted mail locally |
 | `read [-r] <id>` | Decrypt and print a saved mail |

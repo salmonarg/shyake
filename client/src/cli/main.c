@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <getopt.h>
 #include <ctype.h>
+#include <sys/wait.h>
 #include "shyake.h"
 #include "display.h"
 #include "prompt.h"
@@ -52,6 +53,7 @@ typedef struct {
     char *time_format;
     char *time_format_recent;
     char *check_columns;
+    char *editor;
     int no_color;
     int tz_hours;
     int default_action;
@@ -127,6 +129,7 @@ free_app_config(app_config *config)
     free(config->time_format);
     free(config->time_format_recent);
     free(config->check_columns);
+    free(config->editor);
     free(config);
 }
 
@@ -192,6 +195,9 @@ read_config(const char *config_dir)
                 cfg->tz_hours = atoi(val);
         } else if (strcmp(key, "DEFAULT_ACTION") == 0) {
             cfg->default_action = atoi(val);
+        } else if (strcmp(key, "EDITOR") == 0) {
+            free(cfg->editor);
+            cfg->editor = strdup(val);
         }
     }
     fclose(f);
@@ -266,6 +272,79 @@ update_config_user_and_instance(const char *config_dir,
 
     fclose(f);
     return 0;
+}
+
+/* editor resolution: config > $VISUAL > $EDITOR > vim */
+static const char*
+resolve_editor(const app_config *cfg)
+{
+    if (cfg->editor && cfg->editor[0])
+        return cfg->editor;
+    const char *e = getenv("VISUAL");
+    if (e && e[0]) return e;
+    e = getenv("EDITOR");
+    if (e && e[0]) return e;
+    return "vim";
+}
+
+/* run editor on path; vim gets swap/viminfo disabled */
+static int
+launch_editor(const char *editor, const char *path)
+{
+    const char *base = strrchr(editor, '/');
+    base = base ? base + 1 : editor;
+    const char *flags = "";
+    if (strcmp(base, "vim") == 0 || strcmp(base, "nvim") == 0 ||
+        strcmp(base, "vim.tiny") == 0)
+        flags = " -n -i NONE";
+
+    char cmd[1024];
+    snprintf(cmd, sizeof(cmd), "%s%s '%s'", editor, flags, path);
+    int status = system(cmd);
+    if (status == -1 || !WIFEXITED(status))
+        return -1;
+    return WEXITSTATUS(status);
+}
+
+/* zero-overwrite and remove a plaintext temp file */
+static void
+shred_and_unlink(const char *path)
+{
+    FILE *f = fopen(path, "r+");
+    if (f) {
+        fseek(f, 0, SEEK_END);
+        long len = ftell(f);
+        fseek(f, 0, SEEK_SET);
+        for (long i = 0; i < len; i++)
+            fputc(0, f);
+        fflush(f);
+        fclose(f);
+    }
+    unlink(path);
+}
+
+/* parse To:/Subject:/---/body template in place */
+static int
+parse_compose_buffer(char *buf, char **to, char **subject, char **body)
+{
+    *to = NULL; *subject = NULL; *body = NULL;
+    char *line = buf;
+    while (line) {
+        char *nl = strchr(line, '\n');
+        char *next = nl ? nl + 1 : NULL;
+        if (nl) *nl = '\0';
+        char *trimmed = trim_whitespace(line);
+        if (strcmp(trimmed, "---") == 0) {
+            *body = next ? next : line + strlen(line);
+            return 0;
+        }
+        if (strncmp(trimmed, "To:", 3) == 0)
+            *to = trim_whitespace(trimmed + 3);
+        else if (strncmp(trimmed, "Subject:", 8) == 0)
+            *subject = trim_whitespace(trimmed + 8);
+        line = next;
+    }
+    return -1;
 }
 
 int main(int argc, char *argv[])
@@ -347,7 +426,9 @@ int main(int argc, char *argv[])
             printf("  init          Initialize\n");
             printf("  register      Register on an instance\n");
             printf("  send          Send a piece of mail\n");
-            printf("  check         Check inbox, sent, or saved\n");
+            printf("  compose       Compose or edit an encrypted draft\n");
+            printf("  check         Check inbox, sent, saved, or "
+                   "drafts\n");
             printf("  fetch         Fetch and decrypt a piece of mail\n");
             printf("  save          Save a piece of mail locally\n");
             printf("  read          Read a locally saved mail\n");
@@ -410,6 +491,13 @@ int main(int argc, char *argv[])
                 printf("                    Use 'username@instance' for "
                        "an external recipient\n");
                 printf("    -s <subject>    Subject line\n");
+                printf("    -d, --draft <id>\n");
+                printf("                    Send a stored draft. "
+                       "Recipient and subject\n");
+                printf("                    come from the draft unless "
+                       "-t/-s override them.\n");
+                printf("                    The draft is deleted after a "
+                       "successful send.\n");
                 printf("    --debug         "
                        "Output verbose curl logs to stderr\n\n");
                 printf("Note:\n");
@@ -423,19 +511,26 @@ int main(int argc, char *argv[])
                 printf("        tar czf - ./source | base64 | "
                        "shyake send -t salmon -s \"source.tar.gz\"\n");
             } else if (strcmp(subcmd, "check") == 0) {
-                printf("shyake check - Check inbox, sent, or saved\n\n");
+                printf("shyake check - Check inbox, sent, saved, or "
+                       "drafts\n\n");
                 printf("Usage:\n");
                 printf("    shyake check inbox|sent\n");
                 printf("    shyake check saved\n");
+                printf("    shyake check drafts\n");
                 printf("    shyake check <id>\n");
-                printf("    shyake check saved <id>\n\n");
+                printf("    shyake check saved <id>\n");
+                printf("    shyake check drafts <id>\n\n");
                 printf("    'check inbox' and 'check sent' list mail "
                        "from the server.\n");
                 printf("    'check saved' lists locally saved mail.\n");
+                printf("    'check drafts' lists local encrypted "
+                       "drafts.\n");
                 printf("    'check <id>' shows the header of a single "
                        "mail.\n");
                 printf("    'check saved <id>' shows the header of a "
-                       "locally saved mail.\n\n");
+                       "locally saved mail.\n");
+                printf("    'check drafts <id>' decrypts and displays "
+                       "a draft in full.\n\n");
                 printf("Options:\n");
                 printf("    --count         "
                        "Print count only\n");
@@ -451,6 +546,33 @@ int main(int argc, char *argv[])
                        "Disable colored output\n");
                 printf("    --debug         "
                        "Output verbose curl logs to stderr\n");
+            } else if (strcmp(subcmd, "compose") == 0) {
+                printf("shyake compose - Compose or edit an encrypted "
+                       "draft\n\n");
+                printf("Usage:\n");
+                printf("    shyake compose\n");
+                printf("    shyake compose <id>\n\n");
+                printf("    Opens your editor on a To/Subject/--- "
+                       "template and stores\n");
+                printf("    the result as an encrypted draft in "
+                       "~/.config/shyake/drafts/.\n");
+                printf("    Drafts are encrypted to your own key "
+                       "(ML-KEM-768 +\n");
+                printf("    ChaCha20-Poly1305): saving needs no "
+                       "passphrase, reading does.\n");
+                printf("    Leave 'To:' empty to keep a private diary "
+                       "entry.\n");
+                printf("    'shyake compose <id>' edits an existing "
+                       "draft.\n\n");
+                printf("    Editor: EDITOR in config, else "
+                       "$VISUAL/$EDITOR, else vim.\n");
+                printf("    vim runs with -n -i NONE so no plaintext "
+                       "touches swap files.\n\n");
+                printf("    Use 'shyake check drafts' to list drafts.\n");
+                printf("    Use 'shyake send --draft <id>' to send "
+                       "one.\n");
+                printf("    To delete a draft, remove its file from "
+                       "the drafts directory.\n");
             } else if (strcmp(subcmd, "fetch") == 0) {
                 printf("shyake fetch - Fetch and decrypt a piece of "
                        "mail\n\n");
@@ -755,22 +877,113 @@ int main(int argc, char *argv[])
         char *recipient = NULL;
         char *subject = NULL;
         char *extracted_subject = NULL;
+        char *draft_id = NULL;
 
         static struct option long_options[] = {
             {"to", required_argument, 0, 't'},
             {"subject", required_argument, 0, 's'},
+            {"draft", required_argument, 0, 'd'},
             {0, 0, 0, 0}
         };
 
         int opt, option_index = 0;
         optind = 2;
-        while ((opt = getopt_long(argc, argv, "t:s:", long_options,
+        while ((opt = getopt_long(argc, argv, "t:s:d:", long_options,
                                   &option_index)) != -1) {
             switch (opt) {
                 case 't': recipient = optarg; break;
                 case 's': subject = optarg; break;
+                case 'd': draft_id = optarg; break;
                 default: break;
             }
+        }
+
+        /* send a stored draft, delete it on success */
+        if (draft_id) {
+            const char *inst = app_cfg->instance;
+            const char *user = app_cfg->username;
+            if (!inst || !user) {
+                fprintf(stderr,
+                        "Missing INSTANCE or USERNAME in config file.\n");
+                free_app_config(app_cfg);
+                free(config_dir);
+                return EXIT_FAILURE;
+            }
+            shyake_config cfg = {
+                .config_dir = config_dir,
+                .instance_url = inst,
+                .username = user,
+                .plain = global_plain,
+                .debug = global_debug,
+                .no_color = global_no_color || app_cfg->no_color
+            };
+            shyake_ctx *ctx = shyake_init_ctx(&cfg);
+            if (prompt_passphrase(ctx, config_dir) != 0) {
+                shyake_free_ctx(ctx);
+                free_app_config(app_cfg);
+                free(config_dir);
+                return EXIT_FAILURE;
+            }
+
+            shyake_mail_detail *d = shyake_read_draft(ctx, draft_id);
+            if (!d || !d->body) {
+                fprintf(stderr, "Error: Failed to read draft.\n");
+                shyake_free_mail_detail(d);
+                shyake_free_ctx(ctx);
+                free_app_config(app_cfg);
+                free(config_dir);
+                return EXIT_FAILURE;
+            }
+            if (!recipient && d->recipient && d->recipient[0])
+                recipient = d->recipient;
+            if (!subject && d->subject && d->subject[0])
+                subject = d->subject;
+
+            shyake_err ret = SHYAKE_ERR;
+            if (!recipient) {
+                fprintf(stderr, "Error: Draft has no recipient. "
+                        "Use -t <username>.\n");
+            } else if (!subject) {
+                fprintf(stderr, "Error: Draft has no subject. "
+                        "Use -s <subject>.\n");
+            } else if (strlen(subject) > 128) {
+                fprintf(stderr,
+                        "Error: Subject cannot exceed 128 bytes.\n");
+            } else {
+                fprintf(stderr, "Sending draft %s to %s... ",
+                        draft_id, recipient);
+                fflush(stderr);
+                ret = shyake_send(ctx, recipient, subject,
+                                  (const uint8_t*)d->body,
+                                  strlen(d->body));
+                if (ret == SHYAKE_OK) {
+                    fprintf(stderr, "done.\n");
+                    printf("Your mail was sent.\n");
+                    if (shyake_delete_draft(ctx, draft_id) == SHYAKE_OK)
+                        printf("Draft %s deleted.\n", draft_id);
+                } else if (ret == SHYAKE_ERR_KEY_MISMATCH) {
+                    fprintf(stderr, "\n\nFATAL: Remote public key of "
+                            "recipient has changed!\n"
+                            "RUN 'shyake fingerprint <username>' to "
+                            "inspect and update trust.\n");
+                } else if (ret == SHYAKE_ERR_GONE) {
+                    fprintf(stderr,
+                            "\n\nFATAL: Recipient no longer exists.\n");
+                } else if (ret == SHYAKE_ERR_NETWORK) {
+                    fprintf(stderr, "\nError: Network failure.\n");
+                } else if (ret == SHYAKE_ERR_CRYPTO) {
+                    fprintf(stderr,
+                            "\nError: Cryptographic operation failed.\n");
+                } else {
+                    fprintf(stderr, "\nError: Send failed.\n");
+                }
+            }
+
+            shyake_free_mail_detail(d);
+            shyake_free_ctx(ctx);
+            free_app_config(app_cfg);
+            free(config_dir);
+            return ret == SHYAKE_OK ? EXIT_SUCCESS : EXIT_FAILURE;
         }
 
         if (!recipient) {
@@ -916,6 +1129,157 @@ int main(int argc, char *argv[])
         return ret == SHYAKE_OK ? EXIT_SUCCESS : EXIT_FAILURE;
     }
 
+    if (strcmp(cmd, "compose") == 0) {
+        const char *draft_id = NULL;
+        if (argc >= 3 && argv[2][0] != '-')
+            draft_id = argv[2];
+
+        shyake_config cfg = {
+            .config_dir = config_dir,
+            .instance_url = app_cfg->instance ? app_cfg->instance : "",
+            .username = app_cfg->username ? app_cfg->username : "",
+            .plain = global_plain,
+            .debug = global_debug,
+            .no_color = global_no_color || app_cfg->no_color
+        };
+        shyake_ctx *ctx = shyake_init_ctx(&cfg);
+
+        /* build template; editing decrypts the existing draft */
+        char *initial = NULL;
+        if (draft_id) {
+            if (prompt_passphrase(ctx, config_dir) != 0) {
+                shyake_free_ctx(ctx);
+                free_app_config(app_cfg);
+                free(config_dir);
+                return EXIT_FAILURE;
+            }
+            shyake_mail_detail *d = shyake_read_draft(ctx, draft_id);
+            if (!d || !d->body) {
+                fprintf(stderr, "Error: Failed to decrypt draft.\n");
+                shyake_free_mail_detail(d);
+                shyake_free_ctx(ctx);
+                free_app_config(app_cfg);
+                free(config_dir);
+                return EXIT_FAILURE;
+            }
+            const char *to  = d->recipient ? d->recipient : "";
+            const char *sub = d->subject ? d->subject : "";
+            initial = malloc(strlen(to) + strlen(sub) +
+                             strlen(d->body) + 32);
+            sprintf(initial, "To: %s\nSubject: %s\n---\n%s",
+                    to, sub, d->body);
+            shyake_free_mail_detail(d);
+        } else {
+            initial = strdup("To: \nSubject: \n---\n");
+        }
+
+        /* private temp file inside the config dir (not /tmp) */
+        char tmp_path[640];
+        snprintf(tmp_path, sizeof(tmp_path), "%s/.compose-XXXXXX",
+                 config_dir);
+        int fd = mkstemp(tmp_path);
+        if (fd < 0) {
+            fprintf(stderr, "Error: Failed to create temp file.\n");
+            free(initial);
+            shyake_free_ctx(ctx);
+            free_app_config(app_cfg);
+            free(config_dir);
+            return EXIT_FAILURE;
+        }
+        FILE *tf = fdopen(fd, "w");
+        fputs(initial, tf);
+        fclose(tf);
+
+        const char *editor = resolve_editor(app_cfg);
+        int est = launch_editor(editor, tmp_path);
+        if (est != 0) {
+            fprintf(stderr, "Editor '%s' exited with status %d. "
+                    "Draft aborted.\n", editor, est);
+            shred_and_unlink(tmp_path);
+            free(initial);
+            shyake_free_ctx(ctx);
+            free_app_config(app_cfg);
+            free(config_dir);
+            return EXIT_FAILURE;
+        }
+
+        /* read edited content back and wipe the plaintext */
+        FILE *rf = fopen(tmp_path, "rb");
+        char *buf = NULL;
+        size_t buf_len = 0;
+        if (rf) {
+            buf = (char*)read_all_bytes(rf, &buf_len);
+            fclose(rf);
+        }
+        shred_and_unlink(tmp_path);
+        if (buf) {
+            char *nbuf = realloc(buf, buf_len + 1);
+            if (!nbuf) { free(buf); buf = NULL; }
+            else { buf = nbuf; buf[buf_len] = '\0'; }
+        }
+
+        if (!buf || strcmp(buf, initial) == 0) {
+            fprintf(stderr, "Draft aborted.\n");
+            free(buf);
+            free(initial);
+            shyake_free_ctx(ctx);
+            free_app_config(app_cfg);
+            free(config_dir);
+            return EXIT_FAILURE;
+        }
+        free(initial);
+
+        char *to, *subject, *body;
+        if (parse_compose_buffer(buf, &to, &subject, &body) != 0) {
+            fprintf(stderr, "Error: Missing '---' separator. "
+                    "Draft aborted.\n");
+            free(buf);
+            shyake_free_ctx(ctx);
+            free_app_config(app_cfg);
+            free(config_dir);
+            return EXIT_FAILURE;
+        }
+
+        while (*body == '\n' || *body == '\r')
+            body++;
+        int has_content = 0;
+        for (const char *p = body; *p; p++) {
+            if (!isspace((unsigned char)*p)) {
+                has_content = 1;
+                break;
+            }
+        }
+        if (!has_content) {
+            fprintf(stderr, "Draft aborted (empty body).\n");
+            free(buf);
+            shyake_free_ctx(ctx);
+            free_app_config(app_cfg);
+            free(config_dir);
+            return EXIT_FAILURE;
+        }
+
+        if (subject && strlen(subject) > 128)
+            fprintf(stderr, "Warning: Subject exceeds 128 bytes; "
+                    "sending will fail.\n");
+
+        char *new_id = NULL;
+        shyake_err ret = shyake_save_draft(
+            ctx, to, subject, (const uint8_t*)body, strlen(body),
+            draft_id, &new_id);
+        if (ret == SHYAKE_OK) {
+            printf("Draft %s saved.\n", new_id ? new_id : draft_id);
+        } else {
+            fprintf(stderr, "Error: Failed to save draft.\n");
+        }
+
+        free(new_id);
+        free(buf);
+        shyake_free_ctx(ctx);
+        free_app_config(app_cfg);
+        free(config_dir);
+        return ret == SHYAKE_OK ? EXIT_SUCCESS : EXIT_FAILURE;
+    }
+
     if (strcmp(cmd, "check") == 0) {
         if (argc < 3) {
             fprintf(stderr,
@@ -929,6 +1293,7 @@ int main(int argc, char *argv[])
         int is_list = (strcmp(arg, "inbox") == 0 ||
                        strcmp(arg, "sent") == 0);
         int is_saved = (strcmp(arg, "saved") == 0);
+        int is_drafts = (strcmp(arg, "drafts") == 0);
 
         cli_render_opts ro = {0};
         if (is_list) {
@@ -951,6 +1316,86 @@ int main(int argc, char *argv[])
                     default: break;
                 }
             }
+        }
+
+        /* handle check drafts [<id>] entirely from local disk */
+        if (is_drafts) {
+            shyake_config cfg = {
+                .config_dir = config_dir,
+                .instance_url = app_cfg->instance
+                                ? app_cfg->instance : "",
+                .username = app_cfg->username
+                            ? app_cfg->username : "",
+                .plain = global_plain,
+                .debug = global_debug,
+                .no_color = global_no_color || app_cfg->no_color
+            };
+            shyake_ctx *ctx = shyake_init_ctx(&cfg);
+            if (prompt_passphrase(ctx, config_dir) != 0) {
+                shyake_free_ctx(ctx);
+                free_app_config(app_cfg);
+                free(config_dir);
+                return EXIT_FAILURE;
+            }
+            int ret = 0;
+
+            if (argc >= 4) {
+                /* check drafts <id> — full decrypted view */
+                shyake_mail_detail *d = shyake_read_draft(ctx, argv[3]);
+                if (d) {
+                    cli_render_mail_detail(d, 0, cfg.no_color,
+                                           cfg.plain,
+                                           app_cfg->tz_hours,
+                                           app_cfg->time_format,
+                                           app_cfg->time_format_recent);
+                    shyake_free_mail_detail(d);
+                } else {
+                    ret = -1;
+                }
+            } else {
+                /* check drafts — list all; NULL means key failure */
+                shyake_saved_list *slist = shyake_list_drafts(ctx);
+                if (!slist) {
+                    ret = -1;
+                } else if (slist->count > 0) {
+                    shyake_mail_list mlist;
+                    mlist.count   = slist->count;
+                    mlist.entries = calloc(
+                        slist->count, sizeof(shyake_mail_entry));
+
+                    for (int i = 0; i < slist->count; i++) {
+                        shyake_saved_entry *se = &slist->entries[i];
+                        shyake_mail_entry  *me = &mlist.entries[i];
+                        me->mail_id   = se->mail_id;
+                        me->party     = se->recipient[0]
+                                        ? se->recipient : "(diary)";
+                        me->subject   = se->subject;
+                        me->size      = se->size;
+                        me->timestamp = se->timestamp;
+                        me->is_sent   = 1; /* party is the recipient */
+                    }
+
+                    cli_render_opts ro2 = {0};
+                    ro2.no_color        = cfg.no_color;
+                    ro2.plain           = cfg.plain;
+                    ro2.tz_hours        = app_cfg->tz_hours;
+                    ro2.time_fmt        = app_cfg->time_format;
+                    ro2.time_fmt_recent = app_cfg->time_format_recent;
+                    parse_check_columns(app_cfg->check_columns,
+                                        ro2.col_order, &ro2.col_count);
+                    cli_render_mail_list(&mlist, &ro2);
+
+                    free(mlist.entries);
+                } else {
+                    printf("No drafts.\n");
+                }
+                shyake_free_saved_list(slist);
+            }
+
+            shyake_free_ctx(ctx);
+            free_app_config(app_cfg);
+            free(config_dir);
+            return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
         }
 
         /* handle check saved [<id>] entirely from local disk */
