@@ -6,7 +6,7 @@
  *   "version": 1,
  *   "draft_id": "3",
  *   "created": <unix seconds>,
- *   "updated": <unix seconds>,
+ *   "modified": <unix seconds>,
  *   "size": <plaintext body bytes>,
  *   "enc_key": "<b64: kem_ct || (sym_key XOR ss)>",
  *   "enc_recipient": "<b64: nonce||ct||mac>" ("" = no recipient),
@@ -209,7 +209,7 @@ shyake_save_draft(shyake_ctx *ctx, const char *recipient,
     cJSON_AddNumberToObject(root, "version", 1);
     cJSON_AddStringToObject(root, "draft_id", id_buf);
     cJSON_AddNumberToObject(root, "created", (double)created);
-    cJSON_AddNumberToObject(root, "updated", (double)now);
+    cJSON_AddNumberToObject(root, "modified", (double)now);
     cJSON_AddNumberToObject(root, "size", (double)body_len);
     cJSON_AddStringToObject(root, "enc_key", enc_key);
     cJSON_AddStringToObject(root, "enc_recipient",
@@ -267,7 +267,8 @@ parse_draft_json(shyake_ctx *ctx, const char *draft_id, int decrypt_body)
 
     cJSON *jkey = cJSON_GetObjectItem(json, "enc_key");
     cJSON *jbdy = cJSON_GetObjectItem(json, "enc_body");
-    cJSON *jupd = cJSON_GetObjectItem(json, "updated");
+    cJSON *jupd = cJSON_GetObjectItem(json, "modified");
+    cJSON *jcrt = cJSON_GetObjectItem(json, "created");
     cJSON *jsz  = cJSON_GetObjectItem(json, "size");
     if (!jkey || !jkey->valuestring || !jbdy || !jbdy->valuestring) {
         fprintf(stderr, "Corrupt draft file: %s\n", draft_id);
@@ -308,6 +309,7 @@ parse_draft_json(shyake_ctx *ctx, const char *draft_id, int decrypt_body)
     result->subject   = sub;
     result->body      = bdy;
     result->timestamp = jupd ? (int64_t)jupd->valuedouble : 0;
+    result->created   = jcrt ? (int64_t)jcrt->valuedouble : 0;
     result->size      = jsz ? jsz->valueint : 0;
 
     cJSON_Delete(json);
@@ -391,7 +393,8 @@ shyake_list_drafts(shyake_ctx *ctx)
         cJSON *jkey = cJSON_GetObjectItem(json, "enc_key");
         cJSON *jrec = cJSON_GetObjectItem(json, "enc_recipient");
         cJSON *jsub = cJSON_GetObjectItem(json, "enc_subject");
-        cJSON *jupd = cJSON_GetObjectItem(json, "updated");
+        cJSON *jupd = cJSON_GetObjectItem(json, "modified");
+        cJSON *jcrt = cJSON_GetObjectItem(json, "created");
         cJSON *jsz  = cJSON_GetObjectItem(json, "size");
         if (!jkey || !jkey->valuestring) {
             cJSON_Delete(json);
@@ -414,6 +417,7 @@ shyake_list_drafts(shyake_ctx *ctx)
         e->recipient = rec ? rec : strdup("(decryption failed)");
         e->subject   = sub ? sub : strdup("(decryption failed)");
         e->timestamp = jupd ? (int64_t)jupd->valuedouble : 0;
+        e->created   = jcrt ? (int64_t)jcrt->valuedouble : 0;
         e->size      = jsz ? jsz->valueint : 0;
         idx++;
 

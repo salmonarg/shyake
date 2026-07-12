@@ -57,7 +57,6 @@ The release version is set by `VERSION` in `client/Makefile`.
 cd server
 npm install                 # postinstall patches mldsa65-wasm exports
 npx wrangler dev --local    # local dev server on http://localhost:8787
-npx wrangler deploy         # deploy (maintainer only)
 npx wrangler d1 migrations apply shyake-db --local   # apply D1 migrations
 ```
 

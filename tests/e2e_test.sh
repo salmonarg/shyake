@@ -712,7 +712,7 @@ assert_contains "check drafts: subject decrypted" "Draft subject" "$out"
 assert_contains "check drafts: recipient shown" "$USER_B" "$out"
 
 # 19d. check drafts <id> shows full decrypted content
-out=$(sh_run "$DIR_A" check drafts "$DRAFT_ID" 2>&1)
+out=$(sh_run "$DIR_A" read drafts "$DRAFT_ID" 2>&1)
 assert_exit "check drafts <id> exits 0" 0 "$?"
 assert_contains "check drafts <id>: body decrypted" \
     "Draft body content" "$out"
@@ -741,7 +741,7 @@ created_after=$(python3 -c "import json; \
     print(json.load(open('$DIR_A/drafts/$DRAFT_ID.json'))['created'])")
 assert_exit "compose <id>: created preserved" 0 \
     "$([ "$created_before" = "$created_after" ] && echo 0 || echo 1)"
-out=$(sh_run "$DIR_A" check drafts "$DRAFT_ID" 2>&1)
+out=$(sh_run "$DIR_A" read drafts "$DRAFT_ID" 2>&1)
 assert_contains "compose <id>: body updated" "Edited body content" "$out"
 
 # 19g. unchanged template aborts without creating a draft

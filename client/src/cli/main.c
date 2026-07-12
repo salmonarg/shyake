@@ -529,8 +529,9 @@ int main(int argc, char *argv[])
                        "mail.\n");
                 printf("    'check saved <id>' shows the header of a "
                        "locally saved mail.\n");
-                printf("    'check drafts <id>' decrypts and displays "
-                       "a draft in full.\n\n");
+                printf("    'check drafts <id>' shows the header of a "
+                       "draft. Use 'read drafts <id>' for full "
+                       "content.\n\n");
                 printf("Options:\n");
                 printf("    --count         "
                        "Print count only\n");
@@ -698,11 +699,15 @@ int main(int argc, char *argv[])
                 printf("    --debug         "
                        "Output verbose curl logs to stderr\n");
             } else if (strcmp(subcmd, "read") == 0) {
-                printf("shyake read - Read a locally saved mail\n\n");
+                printf("shyake read - Read a locally saved mail "
+                       "or draft\n\n");
                 printf("Usage:\n");
-                printf("    shyake read <id>\n\n");
-                printf("    Decrypts and displays a mail saved by "
-                       "'shyake save'.\n");
+                printf("    shyake read <id>\n");
+                printf("    shyake read drafts <id>\n\n");
+                printf("    'read <id>' decrypts and displays a mail "
+                       "saved by 'shyake save'.\n");
+                printf("    'read drafts <id>' decrypts and displays "
+                       "a local draft in full.\n");
                 printf("    Output is identical to 'shyake fetch'.\n\n");
                 printf("Options:\n");
                 printf("    -r, --raw       "
@@ -1340,14 +1345,13 @@ int main(int argc, char *argv[])
             int ret = 0;
 
             if (argc >= 4) {
-                /* check drafts <id> — full decrypted view */
+                /* check drafts <id> — header only, no body */
                 shyake_mail_detail *d = shyake_read_draft(ctx, argv[3]);
                 if (d) {
-                    cli_render_mail_detail(d, 0, cfg.no_color,
-                                           cfg.plain,
-                                           app_cfg->tz_hours,
-                                           app_cfg->time_format,
-                                           app_cfg->time_format_recent);
+                    cli_render_mail_header(d, cfg.no_color,
+                                          app_cfg->tz_hours,
+                                          app_cfg->time_format,
+                                          app_cfg->time_format_recent);
                     shyake_free_mail_detail(d);
                 } else {
                     ret = -1;
@@ -1372,6 +1376,7 @@ int main(int argc, char *argv[])
                         me->subject   = se->subject;
                         me->size      = se->size;
                         me->timestamp = se->timestamp;
+                        me->created   = se->created;
                         me->is_sent   = 1; /* party is the recipient */
                     }
 
@@ -1381,8 +1386,15 @@ int main(int argc, char *argv[])
                     ro2.tz_hours        = app_cfg->tz_hours;
                     ro2.time_fmt        = app_cfg->time_format;
                     ro2.time_fmt_recent = app_cfg->time_format_recent;
-                    parse_check_columns(app_cfg->check_columns,
-                                        ro2.col_order, &ro2.col_count);
+                    ro2.id_label        = "ID";
+                    /* drafts use Created + Modified instead of Date */
+                    ro2.col_order[0] = COL_ID;
+                    ro2.col_order[1] = COL_PARTY;
+                    ro2.col_order[2] = COL_SUBJECT;
+                    ro2.col_order[3] = COL_SIZE;
+                    ro2.col_order[4] = COL_CREATED;
+                    ro2.col_order[5] = COL_MODIFIED;
+                    ro2.col_count    = 6;
                     cli_render_mail_list(&mlist, &ro2);
 
                     free(mlist.entries);
@@ -1970,6 +1982,51 @@ int main(int argc, char *argv[])
             }
         }
         if (optind < argc) mail_id = argv[optind];
+
+        /* read drafts <id> — decrypt and display a draft in full */
+        if (mail_id && strcmp(mail_id, "drafts") == 0) {
+            const char *draft_id = (optind + 1 < argc)
+                                   ? argv[optind + 1] : NULL;
+            if (!draft_id) {
+                fprintf(stderr, "Usage: shyake read drafts <id>\n");
+                free_app_config(app_cfg);
+                free(config_dir);
+                return EXIT_FAILURE;
+            }
+            shyake_config dcfg = {
+                .config_dir   = config_dir,
+                .instance_url = app_cfg->instance
+                                ? app_cfg->instance : "",
+                .username     = app_cfg->username
+                                ? app_cfg->username : "",
+                .plain        = global_plain,
+                .debug        = global_debug,
+                .no_color     = global_no_color || app_cfg->no_color
+            };
+            shyake_ctx *dctx = shyake_init_ctx(&dcfg);
+            if (prompt_passphrase(dctx, config_dir) != 0) {
+                shyake_free_ctx(dctx);
+                free_app_config(app_cfg);
+                free(config_dir);
+                return EXIT_FAILURE;
+            }
+            int dret = 0;
+            shyake_mail_detail *d = shyake_read_draft(dctx, draft_id);
+            if (d) {
+                cli_render_mail_detail(d, raw, dcfg.no_color,
+                                       dcfg.plain,
+                                       app_cfg->tz_hours,
+                                       app_cfg->time_format,
+                                       app_cfg->time_format_recent);
+                shyake_free_mail_detail(d);
+            } else {
+                dret = -1;
+            }
+            shyake_free_ctx(dctx);
+            free_app_config(app_cfg);
+            free(config_dir);
+            return dret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+        }
 
         if (!mail_id) {
             fprintf(stderr, "Usage: shyake read <id>\n");

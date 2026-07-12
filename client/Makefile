@@ -88,11 +88,11 @@ $(CLI_TARGET): $(CLI_OBJS) $(STATIC_LIB)
 	@mkdir -p $(BIN_DIR)
 	$(CC) $(CFLAGS) $(CLI_OBJS) $(STATIC_LIB) -o $@ $(LDFLAGS)
 
-$(OBJ_DIR)/lib/%.o: $(LIB_DIR)/%.c
+$(OBJ_DIR)/lib/%.o: $(LIB_DIR)/%.c include/shyake.h
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(OBJ_DIR)/cli/%.o: $(CLI_DIR)/%.c
+$(OBJ_DIR)/cli/%.o: $(CLI_DIR)/%.c include/shyake.h
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 

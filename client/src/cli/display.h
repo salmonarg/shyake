@@ -34,12 +34,14 @@ void cli_render_fingerprint(const char *label,
                             int is_self);
 
 /* Column bitmask for CHECK_COLUMNS */
-#define COL_ID      (1 << 0)
-#define COL_PARTY   (1 << 1)  /* sender (inbox) or recipient (sent) */
-#define COL_SUBJECT (1 << 2)
-#define COL_SIZE    (1 << 3)
-#define COL_DATE    (1 << 4)
-#define COL_ALL     (COL_ID | COL_PARTY | COL_SUBJECT | COL_SIZE | COL_DATE)
+#define COL_ID       (1 << 0)
+#define COL_PARTY    (1 << 1)  /* sender (inbox) or recipient (sent) */
+#define COL_SUBJECT  (1 << 2)
+#define COL_SIZE     (1 << 3)
+#define COL_DATE     (1 << 4)
+#define COL_CREATED  (1 << 5)  /* draft creation timestamp */
+#define COL_MODIFIED (1 << 6)  /* draft last-modified timestamp */
+#define COL_ALL      (COL_ID | COL_PARTY | COL_SUBJECT | COL_SIZE | COL_DATE)
 
 /* Mail list rendering */
 typedef struct {
@@ -51,12 +53,13 @@ typedef struct {
     int plain;
     int term_width;
     /* column order: col_order[0..col_count-1] are COL_* values */
-    int col_order[5];
+    int col_order[7];
     int col_count;
     /* timezone */
     int tz_hours; /* offset hours, or TZ_AUTO */
     const char *time_fmt;
     const char *time_fmt_recent;
+    const char *id_label; /* override "Mail ID" column header (NULL = default) */
 } cli_render_opts;
 
 void cli_render_mail_list(const shyake_mail_list *list,

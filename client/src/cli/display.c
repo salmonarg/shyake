@@ -410,12 +410,16 @@ cli_render_mail_list(const shyake_mail_list *list,
     }
 
     int is_sent = list->count > 0 && list->entries[0].is_sent;
+    const char *id_hdr = (opts->id_label && opts->id_label[0])
+                         ? opts->id_label : "Mail ID";
 
     /* Pre-format all entries into display strings */
-    char **d_party   = calloc(count, sizeof(char *));
-    char **d_subject = calloc(count, sizeof(char *));
-    char **d_size    = calloc(count, sizeof(char *));
-    char **d_date    = calloc(count, sizeof(char *));
+    char **d_party    = calloc(count, sizeof(char *));
+    char **d_subject  = calloc(count, sizeof(char *));
+    char **d_size     = calloc(count, sizeof(char *));
+    char **d_date     = calloc(count, sizeof(char *));
+    char **d_created  = calloc(count, sizeof(char *));
+    char **d_modified = calloc(count, sizeof(char *));
 
     for (int i = 0; i < count; i++) {
         shyake_mail_entry *e = &list->entries[i];
@@ -436,6 +440,16 @@ cli_render_mail_list(const shyake_mail_list *list,
                              opts->time_fmt, opts->time_fmt_recent,
                              dbuf, sizeof(dbuf));
         d_date[i] = strdup(dbuf);
+
+        char cbuf[64], mbuf[64];
+        cli_format_timestamp(e->created, opts->tz_hours,
+                             opts->time_fmt, opts->time_fmt_recent,
+                             cbuf, sizeof(cbuf));
+        cli_format_timestamp(e->timestamp, opts->tz_hours,
+                             opts->time_fmt, opts->time_fmt_recent,
+                             mbuf, sizeof(mbuf));
+        d_created[i]  = strdup(cbuf);
+        d_modified[i] = strdup(mbuf);
     }
 
     /* JSON output */
@@ -462,7 +476,7 @@ cli_render_mail_list(const shyake_mail_list *list,
     /* CSV output */
     if (opts->csv_out) {
         if (!opts->no_header)
-            printf("Mail ID,%s,Subject,Size,Date\n",
+            printf("%s,%s,Subject,Size,Date\n", id_hdr,
                    is_sent ? "To" : "From");
         for (int i = 0; i < count; i++) {
             shyake_mail_entry *e = &list->entries[i];
@@ -495,11 +509,13 @@ cli_render_mail_list(const shyake_mail_list *list,
     for (int c = 0; c < ncols; c++) active |= (unsigned)order[c];
 
     /* column widths */
-    int w_id  = 7;
+    int w_id  = (int)strlen(id_hdr);
     int w_snd = is_sent ? 2 : 4;
     int w_sub = 7;
     int w_sz  = 4;
     int w_dt  = 4;
+    int w_crt = 7;  /* "Created" */
+    int w_mod = 8;  /* "Modified" */
 
     for (int i = 0; i < count; i++) {
         int l;
@@ -523,16 +539,26 @@ cli_render_mail_list(const shyake_mail_list *list,
             l = (int)strlen(d_date[i]);
             if (l > w_dt)  w_dt  = l;
         }
+        if (active & COL_CREATED) {
+            l = (int)strlen(d_created[i]);
+            if (l > w_crt) w_crt = l;
+        }
+        if (active & COL_MODIFIED) {
+            l = (int)strlen(d_modified[i]);
+            if (l > w_mod) w_mod = l;
+        }
     }
 
     if (!opts->plain && (active & COL_SUBJECT)) {
         int tw = opts->term_width > 0
             ? opts->term_width : cli_get_terminal_width();
         int used = 0;
-        if (active & COL_ID)    used += w_id  + 1;
-        if (active & COL_PARTY) used += w_snd + 1;
-        if (active & COL_SIZE)  used += w_sz  + 1;
-        if (active & COL_DATE)  used += w_dt;
+        if (active & COL_ID)       used += w_id  + 1;
+        if (active & COL_PARTY)    used += w_snd + 1;
+        if (active & COL_SIZE)     used += w_sz  + 1;
+        if (active & COL_DATE)     used += w_dt;
+        if (active & COL_CREATED)  used += w_crt + 1;
+        if (active & COL_MODIFIED) used += w_mod;
         int max_sub = tw - used - 1;
         if (max_sub < 15) max_sub = 15;
         if (w_sub > max_sub) w_sub = max_sub;
@@ -555,11 +581,12 @@ cli_render_mail_list(const shyake_mail_list *list,
             switch (order[c]) {
             case COL_ID:
                 if (opts->no_color)
-                    printf("%-*s%s", w_id, "Mail ID",
+                    printf("%-*s%s", w_id, id_hdr,
                            is_last ? "" : " ");
                 else
-                    printf("%s%sMail ID%s%-*s%s",
-                           c_w, ul_on, ul_off, w_id - 7, "",
+                    printf("%s%s%s%s%-*s%s",
+                           c_w, ul_on, id_hdr, ul_off,
+                           w_id - (int)strlen(id_hdr), "",
                            is_last ? "" : " ");
                 break;
             case COL_PARTY:
@@ -597,6 +624,24 @@ cli_render_mail_list(const shyake_mail_list *list,
                 else
                     printf("%s%sDate%s%-*s%s",
                            c_w, ul_on, ul_off, w_dt - 4, "",
+                           is_last ? "" : " ");
+                break;
+            case COL_CREATED:
+                if (opts->no_color)
+                    printf("%-*s%s", w_crt, "Created",
+                           is_last ? "" : " ");
+                else
+                    printf("%s%sCreated%s%-*s%s",
+                           c_w, ul_on, ul_off, w_crt - 7, "",
+                           is_last ? "" : " ");
+                break;
+            case COL_MODIFIED:
+                if (opts->no_color)
+                    printf("%-*s%s", w_mod, "Modified",
+                           is_last ? "" : " ");
+                else
+                    printf("%s%sModified%s%-*s%s",
+                           c_w, ul_on, ul_off, w_mod - 8, "",
                            is_last ? "" : " ");
                 break;
             default: break;
@@ -651,6 +696,14 @@ cli_render_mail_list(const shyake_mail_list *list,
                 printf("%s%-*s%s%s", c_w, w_dt, d_date[i], c_rs,
                        is_last ? "" : " ");
                 break;
+            case COL_CREATED:
+                printf("%s%-*s%s%s", c_w, w_crt, d_created[i], c_rs,
+                       is_last ? "" : " ");
+                break;
+            case COL_MODIFIED:
+                printf("%s%-*s%s%s", c_w, w_mod, d_modified[i], c_rs,
+                       is_last ? "" : " ");
+                break;
             default: break;
             }
         }
@@ -668,11 +721,15 @@ cleanup:
         free(d_subject[i]);
         free(d_size[i]);
         free(d_date[i]);
+        free(d_created[i]);
+        free(d_modified[i]);
     }
     free(d_party);
     free(d_subject);
     free(d_size);
     free(d_date);
+    free(d_created);
+    free(d_modified);
 }
 
 /* ------------------------------------------------------------------ */
@@ -740,10 +797,10 @@ cli_render_mail_header(const shyake_mail_detail *d,
     const char *c_rs  = no_color ? "" : "\033[0m";
     int tw = cli_get_terminal_width();
 
-    char date_buf[64];
+    char mod_buf[64], crt_buf[64];
     cli_format_timestamp(d->timestamp, tz_hours,
                          time_fmt, time_fmt_recent,
-                         date_buf, sizeof(date_buf));
+                         mod_buf, sizeof(mod_buf));
 
     const char *sub_text = d->subject
         ? d->subject : "(decryption failed)";
@@ -753,5 +810,13 @@ cli_render_mail_header(const shyake_mail_detail *d,
     printf("%sSUBJ:%s ", c_lbl, c_rs);
     cli_print_word_wrap(sub_text, 6, tw);
     printf("%sSIZE:%s %d\n", c_lbl, c_rs, d->size);
-    printf("%sDATE:%s %s\n", c_lbl, c_rs, date_buf);
+    if (d->created) {
+        cli_format_timestamp(d->created, tz_hours,
+                             time_fmt, time_fmt_recent,
+                             crt_buf, sizeof(crt_buf));
+        printf("%sCRT:%s  %s\n", c_lbl, c_rs, crt_buf);
+        printf("%sMOD:%s  %s\n", c_lbl, c_rs, mod_buf);
+    } else {
+        printf("%sDATE:%s %s\n", c_lbl, c_rs, mod_buf);
+    }
 }

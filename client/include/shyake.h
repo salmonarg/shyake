@@ -70,7 +70,8 @@ typedef struct {
     char *party;       /* inbox: sender; sent: recipient (raw string) */
     char *subject;     /* decrypted, NULL if failed */
     int size;          /* plaintext byte count */
-    int64_t timestamp; /* UNIX timestamp seconds */
+    int64_t timestamp; /* UNIX timestamp seconds (modified for drafts) */
+    int64_t created;   /* creation timestamp; non-zero for drafts only */
     int is_sent;       /* 1 if from sent box */
 } shyake_mail_entry;
 
@@ -97,7 +98,8 @@ typedef struct {
     char *recipient;
     char *subject;     /* decrypted, NULL if failed */
     char *body;        /* decrypted, NULL if failed */
-    int64_t timestamp; /* UNIX timestamp seconds */
+    int64_t timestamp; /* UNIX timestamp seconds (modified for drafts) */
+    int64_t created;   /* creation timestamp; non-zero for drafts only */
     int size;          /* plaintext byte count */
 } shyake_mail_detail;
 
@@ -162,7 +164,8 @@ typedef struct {
     char *sender;
     char *recipient;
     char *subject;     /* decrypted, NULL if failed */
-    int64_t timestamp;
+    int64_t timestamp; /* modified timestamp for drafts */
+    int64_t created;   /* creation timestamp; non-zero for drafts only */
     int size;
 } shyake_saved_entry;
 
