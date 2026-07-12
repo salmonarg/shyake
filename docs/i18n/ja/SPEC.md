@@ -217,7 +217,7 @@ GET:/api/mail?type=inbox:salmon:1749513600
   "version": 1,
   "draft_id": "3",
   "created": 1752400000,
-  "updated": 1752400000,
+  "modified": 1752400000,
   "size": 123,
   "enc_key": "<b64: kem_ct || (sym_key XOR ss)>",
   "enc_recipient": "<b64: nonce||ct||mac>",
@@ -485,10 +485,11 @@ API グループ：コンテキストのライフサイクル、鍵生成、PoW 
 | `check inbox\|sent [opts]` | メールボックスのメタデータを一覧表示 |
 | `check <id>` | 単一メールのヘッダーを確認 |
 | `check saved [<id>]` | ローカル保存メールの一覧／確認 |
-| `check drafts [<id>]` | 下書きの一覧／復号して全文表示 |
+| `check drafts [<id>]` | 下書きの一覧／ヘッダー確認 |
 | `fetch [-r] <id>` | メールを復号して表示 |
 | `save <id>` | 暗号化メールをローカルに保存 |
 | `read [-r] <id>` | 保存済みメールを復号して表示 |
+| `read [-r] drafts <id>` | 下書きを復号して表示 |
 | `burn <id>` | メールを削除（送信者・受信者どちらでも可） |
 | `block <target>` | ユーザーまたはドメインをブロック |
 | `unblock <target>` | ユーザーまたはドメインのブロックを解除 |

@@ -104,7 +104,7 @@ shyake check saved fQBjZnvJ56
 ```
 
 To list local encrypted drafts (see the compose command below), or
-decrypt and display one in full:
+check the header of a draft:
 
 ```sh
 shyake check drafts
@@ -181,7 +181,7 @@ Leave `To:` empty and the draft becomes a private diary entry —
 ```sh
 shyake compose            # write a diary entry, leave To: empty
 shyake check drafts       # list entries
-shyake check drafts 3     # read entry 3
+shyake read drafts 3      # read entry 3
 shyake compose 3          # continue writing entry 3
 ```
 
@@ -249,6 +249,13 @@ shyake save fQBjZnvJ56
 
 ```sh
 shyake read fQBjZnvJ56
+```
+
+`read drafts <id>` does the same for a local draft; `read` handles
+everything local, while `fetch` handles the remote side.
+
+```sh
+shyake read drafts 3
 ```
 
 **Fingerprint command**:

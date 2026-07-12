@@ -213,7 +213,7 @@ PoW 令牌，SHA-1 难度为 **20 位**：
   "version": 1,
   "draft_id": "3",
   "created": 1752400000,
-  "updated": 1752400000,
+  "modified": 1752400000,
   "size": 123,
   "enc_key": "<b64: kem_ct || (sym_key XOR ss)>",
   "enc_recipient": "<b64: nonce||ct||mac>",
@@ -472,10 +472,11 @@ API 分组：上下文生命周期、密钥生成、PoW 铸造、注册、邮件
 | `check inbox\|sent [opts]` | 列出邮件箱元数据 |
 | `check <id>` | 查看单封邮件的邮件头 |
 | `check saved [<id>]` | 列出/查看本地保存的邮件 |
-| `check drafts [<id>]` | 列出草稿/解密并显示单份草稿 |
+| `check drafts [<id>]` | 列出草稿/查看单份草稿的头部 |
 | `fetch [-r] <id>` | 解密并打印邮件 |
 | `save <id>` | 在本地存储加密邮件 |
 | `read [-r] <id>` | 解密并打印已保存的邮件 |
+| `read [-r] drafts <id>` | 解密并打印草稿 |
 | `burn <id>` | 删除邮件（发件人或收件人均可） |
 | `block <target>` | 屏蔽用户或域名 |
 | `unblock <target>` | 取消屏蔽用户或域名 |

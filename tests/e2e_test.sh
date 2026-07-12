@@ -710,11 +710,21 @@ out=$(sh_run "$DIR_A" check drafts 2>&1)
 assert_exit "check drafts exits 0" 0 "$?"
 assert_contains "check drafts: subject decrypted" "Draft subject" "$out"
 assert_contains "check drafts: recipient shown" "$USER_B" "$out"
+assert_contains "check drafts: ID column header" "ID" "$out"
+assert_contains "check drafts: Created column" "Created" "$out"
+assert_contains "check drafts: Modified column" "Modified" "$out"
 
-# 19d. check drafts <id> shows full decrypted content
-out=$(sh_run "$DIR_A" read drafts "$DRAFT_ID" 2>&1)
+# 19d. check drafts <id> shows header only; read drafts <id> shows body
+out=$(sh_run "$DIR_A" check drafts "$DRAFT_ID" 2>&1)
 assert_exit "check drafts <id> exits 0" 0 "$?"
-assert_contains "check drafts <id>: body decrypted" \
+assert_contains "check drafts <id>: subject shown" "Draft subject" "$out"
+assert_contains "check drafts <id>: CRT field" "CRT:" "$out"
+assert_contains "check drafts <id>: MOD field" "MOD:" "$out"
+assert_not_contains "check drafts <id>: body not shown" \
+    "Draft body content" "$out"
+out=$(sh_run "$DIR_A" read drafts "$DRAFT_ID" 2>&1)
+assert_exit "read drafts <id> exits 0" 0 "$?"
+assert_contains "read drafts <id>: body decrypted" \
     "Draft body content" "$out"
 
 # 19e. diary draft (empty To) lists as (diary), refuses send without -t

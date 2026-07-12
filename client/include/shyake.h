@@ -211,7 +211,7 @@ shyake_saved_list* shyake_list_saved(shyake_ctx *ctx);
  * recipient: NULL or "" for a diary entry (no recipient).
  * subject: NULL or "" allowed (unlike send).
  * draft_id: NULL to create a new draft; existing id to overwrite
- *           (created timestamp is preserved, updated is refreshed).
+ *           (created timestamp is preserved, modified is refreshed).
  * out_id: if non-NULL, receives the allocated id string
  *         (caller must free()).
  * Returns SHYAKE_OK on success, SHYAKE_ERR_NOT_FOUND if draft_id

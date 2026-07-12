@@ -91,7 +91,7 @@ shyake check saved
 shyake check saved fQBjZnvJ56
 ```
 
-列出本地加密草稿（参见下文的 compose 命令），或解密并完整显示某份草稿：
+列出本地加密草稿（参见下文的 compose 命令），或查看某份草稿的头部信息：
 
 ```sh
 shyake check drafts
@@ -158,7 +158,7 @@ The mail body goes here.
 ```sh
 shyake compose            # 写一篇日记，To: 留空
 shyake check drafts       # 列出所有条目
-shyake check drafts 3     # 阅读第 3 条
+shyake read drafts 3      # 阅读第 3 条
 shyake compose 3          # 继续编辑第 3 条
 ```
 
@@ -217,6 +217,12 @@ shyake save fQBjZnvJ56
 
 ```sh
 shyake read fQBjZnvJ56
+```
+
+`read drafts <id>` 对本地草稿做同样的事——`read` 负责本地，`fetch` 负责远端。
+
+```sh
+shyake read drafts 3
 ```
 
 **fingerprint 命令**：

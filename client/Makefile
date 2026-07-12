@@ -45,6 +45,7 @@ endif
 CFLAGS = -Wall -Wextra -std=c11 -pedantic \
          -D_POSIX_C_SOURCE=200809L -fPIC \
          -DSHYAKE_VERSION='"$(VERSION)"' \
+         -MMD -MP \
          -Iinclude \
          -Isrc/lib/vendor/cJSON \
          $(addprefix -I, $(SYS_INC))
@@ -88,13 +89,16 @@ $(CLI_TARGET): $(CLI_OBJS) $(STATIC_LIB)
 	@mkdir -p $(BIN_DIR)
 	$(CC) $(CFLAGS) $(CLI_OBJS) $(STATIC_LIB) -o $@ $(LDFLAGS)
 
-$(OBJ_DIR)/lib/%.o: $(LIB_DIR)/%.c include/shyake.h
+$(OBJ_DIR)/lib/%.o: $(LIB_DIR)/%.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(OBJ_DIR)/cli/%.o: $(CLI_DIR)/%.c include/shyake.h
+$(OBJ_DIR)/cli/%.o: $(CLI_DIR)/%.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
+
+# compiler-generated header dependencies
+-include $(LIB_OBJS:.o=.d) $(CLI_OBJS:.o=.d)
 
 test: $(STATIC_LIB)
 	@mkdir -p $(BIN_DIR)

@@ -259,7 +259,7 @@ user's own KEM public key.
   "version": 1,
   "draft_id": "3",
   "created": 1752400000,
-  "updated": 1752400000,
+  "modified": 1752400000,
   "size": 123,
   "enc_key": "<b64: kem_ct || (sym_key XOR ss)>",
   "enc_recipient": "<b64: nonce||ct||mac>",
@@ -575,10 +575,11 @@ Recognized environment variables:
 | `check inbox\|sent [opts]` | List mailbox metadata |
 | `check <id>` | Inspect a single mail header |
 | `check saved [<id>]` | List / inspect locally saved mail |
-| `check drafts [<id>]` | List drafts / decrypt and display one |
+| `check drafts [<id>]` | List drafts / inspect a draft header |
 | `fetch [-r] <id>` | Decrypt and print a mail |
 | `save <id>` | Store encrypted mail locally |
 | `read [-r] <id>` | Decrypt and print a saved mail |
+| `read [-r] drafts <id>` | Decrypt and print a draft |
 | `burn <id>` | Delete a mail (sender or recipient) |
 | `block <target>` | Block a user or domain |
 | `unblock <target>` | Unblock a user or domain |

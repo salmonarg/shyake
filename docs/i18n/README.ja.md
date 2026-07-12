@@ -91,7 +91,7 @@ shyake check saved
 shyake check saved fQBjZnvJ56
 ```
 
-ローカルの暗号化下書きの一覧表示（後述の compose コマンドを参照）や、下書きの復号・全文表示には：
+ローカルの暗号化下書きの一覧表示（後述の compose コマンドを参照）や、下書きのヘッダー確認には：
 
 ```sh
 shyake check drafts
@@ -160,7 +160,7 @@ The mail body goes here.
 ```sh
 shyake compose            # 日記を書く（To: は空欄のまま）
 shyake check drafts       # エントリの一覧
-shyake check drafts 3     # エントリ 3 を読む
+shyake read drafts 3      # エントリ 3 を読む
 shyake compose 3          # エントリ 3 の続きを書く
 ```
 
@@ -218,6 +218,12 @@ shyake save fQBjZnvJ56
 
 ```sh
 shyake read fQBjZnvJ56
+```
+
+`read drafts <id>` はローカルの下書きに対して同じことを行います。`read` はローカル、`fetch` はリモートを担当します。
+
+```sh
+shyake read drafts 3
 ```
 
 **fingerprint コマンド**：
