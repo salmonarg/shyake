@@ -324,8 +324,7 @@ ML-DSA-65 署名（§3.3）を検証する。`POST /api/register` と
 
 #### 5.3 サイズ制限
 
-サーバーは `POST /api/mail` の生の HTTP リクエストボディにハードキャップを課す。デフォルトは
-**196608 バイト（192 KiB）**で、`wrangler.toml` の
+サーバーは `POST /api/mail` の生の HTTP リクエストボディにハードキャップを課す。デフォルトは **196608 バイト**（192 KiB）で、`wrangler.toml` の
 `MAX_MAIL_SIZE` で設定可能である。絶対上限は 786432 バイト（768 KiB）で、Cloudflare D1 の単一行制限によるものである。
 
 ---
