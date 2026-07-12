@@ -224,8 +224,11 @@ shyake_err shyake_dec_file(shyake_ctx *ctx,
 /* --- Client version --- */
 
 typedef struct {
-    char *release;     /* latest stable tag, e.g. "v0.1.1" */
-    char *pre_release; /* latest pre-release tag, may be NULL */
+    char *release;            /* latest stable tag, e.g. "v0.1.1" */
+    char *pre_release;        /* latest pre-release tag, may be NULL */
+    char *release_digest;     /* sha256 hex of this platform's stable
+                                 asset, may be NULL */
+    char *pre_release_digest; /* same for the preview asset */
 } shyake_version_info;
 
 typedef enum {

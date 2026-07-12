@@ -1,7 +1,9 @@
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <stdio.h>
 #include <curl/curl.h>
+#include <openssl/sha.h>
 #include "vendor/cJSON/cJSON.h"
 #include "lib_internal.h"
 #if defined(__APPLE__)
@@ -14,7 +16,37 @@ shyake_free_version_info(shyake_version_info *v)
     if (!v) return;
     free(v->release);
     free(v->pre_release);
+    free(v->release_digest);
+    free(v->pre_release_digest);
     free(v);
+}
+
+/* compile-time platform artifact name */
+static const char*
+platform_artifact(void)
+{
+#if defined(__APPLE__) && defined(__aarch64__)
+    return "shyake-darwin-arm64";
+#elif defined(__APPLE__)
+    return "shyake-darwin-x86_64";
+#elif defined(__linux__) && defined(__aarch64__)
+    return "shyake-linux-aarch64";
+#else
+    return "shyake-linux-x86_64";
+#endif
+}
+
+/* pull digest of this platform's asset from a digests object */
+static char*
+extract_digest(cJSON *json, const char *key, const char *asset)
+{
+    cJSON *digests = cJSON_GetObjectItem(json, key);
+    if (!digests) return NULL;
+    cJSON *d = cJSON_GetObjectItem(digests, asset);
+    if (!d || !cJSON_IsString(d)) return NULL;
+    const char *v = d->valuestring;
+    if (strncmp(v, "sha256:", 7) == 0) v += 7;
+    return strdup(v);
 }
 
 /* parse "vX.Y.Z" or "vX.Y.Z-anything" into components */
@@ -83,11 +115,19 @@ shyake_get_latest_version(shyake_ctx *ctx, const char *version_url)
                 cJSON *rel = cJSON_GetObjectItem(json, "release");
                 cJSON *pre = cJSON_GetObjectItem(json, "pre_release");
 
+                char asset[64];
+                snprintf(asset, sizeof(asset), "%s.tar.gz",
+                         platform_artifact());
+
                 info = calloc(1, sizeof(shyake_version_info));
                 if (rel && cJSON_IsString(rel))
                     info->release = strdup(rel->valuestring);
                 if (pre && cJSON_IsString(pre))
                     info->pre_release = strdup(pre->valuestring);
+                info->release_digest = extract_digest(
+                    json, "release_digests", asset);
+                info->pre_release_digest = extract_digest(
+                    json, "pre_release_digests", asset);
 
                 cJSON_Delete(json);
             }
@@ -127,15 +167,40 @@ download_to_tmp(shyake_ctx *ctx, const char *download_url,
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 120L);
 
     CURLcode res = curl_easy_perform(curl);
+    long http_code = 0;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
     fclose(f);
     curl_easy_cleanup(curl);
 
-    if (res != CURLE_OK) {
+    if (res != CURLE_OK || http_code != 200) {
         remove(tmp_path);
         free(tmp_path);
         return NULL;
     }
     return tmp_path;
+}
+
+/* compare file SHA-256 with expected hex digest, 0 = match */
+static int
+verify_sha256(const char *file_path, const char *expected_hex)
+{
+    if (!expected_hex ||
+        strlen(expected_hex) != SHA256_DIGEST_LENGTH * 2)
+        return -1;
+
+    size_t data_len = 0;
+    uint8_t *data = load_file(file_path, &data_len);
+    if (!data) return -1;
+
+    unsigned char digest[SHA256_DIGEST_LENGTH];
+    SHA256(data, data_len, digest);
+    free(data);
+
+    char actual[SHA256_DIGEST_LENGTH * 2 + 1];
+    for (int i = 0; i < SHA256_DIGEST_LENGTH; i++)
+        snprintf(actual + i * 2, 3, "%02x", digest[i]);
+
+    return strcasecmp(expected_hex, actual) == 0 ? 0 : -1;
 }
 
 shyake_err
@@ -184,54 +249,37 @@ shyake_self_update(shyake_ctx *ctx, const char *version_url,
         return SHYAKE_OK;
     }
 
-    /* detect OS/arch for asset filename */
-#if defined(__APPLE__) && defined(__aarch64__)
-    const char *asset = "shyake-macos-arm64.tar.gz";
-#elif defined(__APPLE__)
-    const char *asset = "shyake-macos-x86_64.tar.gz";
-#elif defined(__linux__) && defined(__aarch64__)
-    const char *asset = "shyake-linux-arm64.tar.gz";
-#else
-    const char *asset = "shyake-linux-x86_64.tar.gz";
-#endif
+    const char *digest = (channel == SHYAKE_UPDATE_PREVIEW)
+        ? info->pre_release_digest : info->release_digest;
+    if (!digest) {
+        fprintf(stderr,
+                "No checksum available for this platform.\n");
+        shyake_free_version_info(info);
+        return SHYAKE_ERR;
+    }
 
-    char dl_url[512], sha_url[512];
+    const char *artifact = platform_artifact();
+    char asset[64];
+    snprintf(asset, sizeof(asset), "%s.tar.gz", artifact);
+
+    char dl_url[512];
     snprintf(dl_url, sizeof(dl_url),
              "https://github.com/salmonization/shyake/releases/download"
              "/%s/%s", target, asset);
-    snprintf(sha_url, sizeof(sha_url),
-             "https://github.com/salmonization/shyake/releases/download"
-             "/%s/sha256sums.txt", target);
 
     fprintf(stderr, "Downloading %s %s...\n", target, asset);
-
-    char sha_filename[64];
-    snprintf(sha_filename, sizeof(sha_filename), "shyake-sha256sums.txt");
-    char *sha_path = download_to_tmp(ctx, sha_url, sha_filename);
-    if (!sha_path) {
-        fprintf(stderr, "Failed to download checksum file.\n");
-        shyake_free_version_info(info);
-        return SHYAKE_ERR_NETWORK;
-    }
 
     char *tar_path = download_to_tmp(ctx, dl_url, asset);
     if (!tar_path) {
         fprintf(stderr, "Failed to download release archive.\n");
-        remove(sha_path); free(sha_path);
         shyake_free_version_info(info);
         return SHYAKE_ERR_NETWORK;
     }
 
     /* verify sha256 */
-    char sha_cmd[512];
-    snprintf(sha_cmd, sizeof(sha_cmd),
-             "cd /tmp && grep '%s' '%s' | sha256sum --check --quiet 2>/dev/null",
-             asset, sha_path);
-    int sha_ret = system(sha_cmd);
-    if (sha_ret != 0) {
+    if (verify_sha256(tar_path, digest) != 0) {
         fprintf(stderr, "SHA-256 verification failed. Aborting.\n");
-        remove(sha_path); remove(tar_path);
-        free(sha_path); free(tar_path);
+        remove(tar_path); free(tar_path);
         shyake_free_version_info(info);
         return SHYAKE_ERR_CRYPTO;
     }
@@ -254,23 +302,23 @@ shyake_self_update(shyake_ctx *ctx, const char *version_url,
 
     if (self_path[0] == '\0') {
         fprintf(stderr, "Cannot determine shyake binary path.\n");
-        remove(sha_path); remove(tar_path);
-        free(sha_path); free(tar_path);
+        remove(tar_path); free(tar_path);
         shyake_free_version_info(info);
         return SHYAKE_ERR;
     }
 
+    /* archive layout: <artifact>/shyake */
     char extract_cmd[1024];
     snprintf(extract_cmd, sizeof(extract_cmd),
-             "tar xzf '%s' -C /tmp && cp /tmp/shyake '%s' && chmod 755 '%s'",
-             tar_path, self_path, self_path);
+             "tar xzf '%s' -C /tmp && cp '/tmp/%s/shyake' '%s' && "
+             "chmod 755 '%s' && rm -rf '/tmp/%s'",
+             tar_path, artifact, self_path, self_path, artifact);
     int ext_ret = system(extract_cmd);
 
     char installed_ver[64];
     snprintf(installed_ver, sizeof(installed_ver), "%s", target);
 
-    remove(sha_path); remove(tar_path);
-    free(sha_path); free(tar_path);
+    remove(tar_path); free(tar_path);
     shyake_free_version_info(info);
 
     if (ext_ret != 0) {

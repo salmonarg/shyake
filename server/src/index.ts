@@ -21,7 +21,7 @@ const toBase64Url = (b64: string): string => {
 
 export interface Env {
     DB: D1Database;
-    VERSION_CACHE: KVNamespace;
+    VERSION_CACHE?: KVNamespace;
     INSTANCE_DOMAIN: string;
     REGISTRATION_ENABLED: string;
     RESERVED_USERNAMES: string;
@@ -42,13 +42,15 @@ app.get('/health', async (c) => {
 
 /* proxy GitHub Releases API with 1-hour KV cache */
 app.get('/api/client/version', async (c) => {
-    const CACHE_KEY = 'client_version';
+    const CACHE_KEY = 'client_version_v2';
     const CACHE_TTL = 3600;
 
     try {
-        const cached = await c.env.VERSION_CACHE.get(CACHE_KEY);
-        if (cached) {
-            return c.json(JSON.parse(cached), 200);
+        if (c.env.VERSION_CACHE) {
+            const cached = await c.env.VERSION_CACHE.get(CACHE_KEY);
+            if (cached) {
+                return c.json(JSON.parse(cached), 200);
+            }
         }
     } catch (_) {}
 
@@ -65,28 +67,52 @@ app.get('/api/client/version', async (c) => {
 
         let release: string | null = null;
         let pre_release: string | null = null;
+        const release_digests: Record<string, string> = {};
+        const pre_release_digests: Record<string, string> = {};
+
+        // collect per-asset sha256 digests from GitHub
+        const collectDigests = (
+            r: any, out: Record<string, string>
+        ) => {
+            for (const a of r.assets ?? []) {
+                if (typeof a.digest === 'string' &&
+                    a.digest.startsWith('sha256:')) {
+                    out[a.name] = a.digest.slice(7);
+                }
+            }
+        };
 
         for (const r of releases) {
             if (r.draft) continue;
             if (!r.prerelease && !release) {
                 release = r.tag_name;
+                collectDigests(r, release_digests);
             }
             if (r.prerelease && !pre_release) {
                 pre_release = r.tag_name;
+                collectDigests(r, pre_release_digests);
             }
             if (release && pre_release) break;
         }
 
-        const payload: Record<string, string> = {};
-        if (release) payload.release = release;
-        if (pre_release) payload.pre_release = pre_release;
+        const payload: Record<string, any> = {};
+        if (release) {
+            payload.release = release;
+            payload.release_digests = release_digests;
+        }
+        if (pre_release) {
+            payload.pre_release = pre_release;
+            payload.pre_release_digests = pre_release_digests;
+        }
 
         try {
-            await c.env.VERSION_CACHE.put(
-                CACHE_KEY,
-                JSON.stringify(payload),
-                { expirationTtl: CACHE_TTL }
-            );
+            if (c.env.VERSION_CACHE) {
+                await c.env.VERSION_CACHE.put(
+                    CACHE_KEY,
+                    JSON.stringify(payload),
+                    { expirationTtl: CACHE_TTL }
+                );
+            }
         } catch (_) {}
 
         return c.json(payload, 200);
