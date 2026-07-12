@@ -151,10 +151,10 @@ base64 image.png | shyake send -t flat_white -s "image.png"
 tar czf - ./source | base64 | shyake send -t flat_white -s "source.tar.gz"
 ```
 
-**Compose command (drafts & diary)**:
+**Compose command**:
 
 The classic `ed` and `vi` editors once shipped with built-in
-encryption; today only NetBSD keeps it, since the underlying
+encryption. Today only NetBSD keeps it, since the underlying
 `crypt()` scheme is long broken. `compose` revives that spirit with
 post-quantum cryptography: it opens your editor on a small template
 and stores the result as a draft under `~/.config/shyake/drafts/`,

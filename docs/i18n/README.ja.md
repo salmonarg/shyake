@@ -138,7 +138,7 @@ base64 image.png | shyake send -t flat_white -s "image.png"
 tar czf - ./source | base64 | shyake send -t flat_white -s "source.tar.gz"
 ```
 
-**compose コマンド（下書きと日記）**：
+**compose コマンド**：
 
 かつての `ed` や `vi` エディタには暗号化機能が組み込まれていました。現在それを残しているのは NetBSD だけです——基盤となる `crypt()` 方式はとうに破られているためです。`compose` はその精神をポスト量子暗号で蘇らせます。エディタで小さなテンプレートを開き、結果を ML-KEM-768 + ChaCha20-Poly1305 で自分自身の鍵に暗号化して `~/.config/shyake/drafts/` に下書きとして保存します。
 

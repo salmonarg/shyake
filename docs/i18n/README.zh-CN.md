@@ -136,9 +136,9 @@ base64 image.png | shyake send -t flat_white -s "image.png"
 tar czf - ./source | base64 | shyake send -t flat_white -s "source.tar.gz"
 ```
 
-**compose 命令（草稿箱与日记本）**：
+**compose 命令**：
 
-经典的 `ed` 和 `vi` 编辑器曾自带加密功能；如今只有 NetBSD 还保留着它，因为其底层的 `crypt()` 方案早已被攻破。`compose` 用后量子密码学让这一传统重光：它会用你的编辑器打开一个小模板，并将结果作为草稿存入 `~/.config/shyake/drafts/`，使用 ML-KEM-768 + ChaCha20-Poly1305 加密给你自己的密钥。
+经典的 `ed` 和 `vi` 编辑器曾自带加密功能，如今只有 NetBSD 还保留着它，因为其底层的 `crypt()` 方案早已被攻破。`compose` 用后量子密码学让这一功能得以重获新生：它会用你的编辑器打开一个小模板，并将结果作为草稿存入 `~/.config/shyake/drafts/`，使用 ML-KEM-768 + ChaCha20-Poly1305 加密给你自己的密钥。
 
 ```sh
 shyake compose
@@ -151,7 +151,7 @@ Subject: Coffee tomorrow?
 The mail body goes here.
 ```
 
-收件人、主题和正文在磁盘上全部加密。保存草稿不需要口令（只用到你的公钥）；列出或阅读草稿则需要解锁你的私钥。
+收件人、主题和正文在磁盘上全部加密。保存草稿不需要口令（只用到你的公钥）。列出或阅读草稿则需要解锁你的私钥。
 
 将 `To:` 留空，草稿就成为一篇私密日记——`check drafts` 会将其显示为 `(diary)`：
 
@@ -169,7 +169,7 @@ shyake send --draft 3
 shyake send --draft 3 -t flat_white
 ```
 
-编辑器默认为 `vim`，并以 `-n -i NONE` 启动，确保明文不会泄漏到交换文件中。可通过配置文件中的 `EDITOR` 键或 `$VISUAL`/`$EDITOR` 环境变量换用其他编辑器。草稿只是普通的本地文件；要删除某份草稿，直接移除 `~/.config/shyake/drafts/<id>.json` 即可。
+编辑器默认为 `vim`，并以 `-n -i NONE` 启动，确保明文不会泄漏到交换文件中。可通过配置文件中的 `EDITOR` 键或 `$VISUAL`/`$EDITOR` 环境变量换用其他编辑器。草稿只是普通的本地文件，要删除某份草稿，直接移除 `~/.config/shyake/drafts/<id>.json` 即可。
 
 **fetch 命令**：
 
