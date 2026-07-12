@@ -18,8 +18,7 @@
 
 ### 依赖
 
-`liboqs` 在所有平台上都是静态链接，因此二进制文件对它没有运行时
-依赖。`libcurl` 和 `libcrypto` 在所有平台上仍为动态链接。
+`liboqs` 在所有平台上都是静态链接，因此二进制文件对它没有运行时依赖。`libcurl` 和 `libcrypto` 在所有平台上仍为动态链接。
 
 依赖（仅构建时需要）：
 
@@ -58,12 +57,9 @@ pkg install clang cmake make curl-dev openssl-dev
 
 **构建 liboqs**
 
-从源码编译 `liboqs` 时（例如在 GNU/Linux 或 Termux 上），必须进行
-最小化构建。启用全部算法构建 `liboqs` 会使二进制体积急剧膨胀
-（约 20MB）。
+从源码编译 `liboqs` 时（例如在 GNU/Linux 或 Termux 上），必须进行最小化构建。启用全部算法构建 `liboqs` 会使二进制体积急剧膨胀（约 20MB）。
 
-只构建 Shyake 所需算法（ML-KEM-768 和 ML-DSA-65）的 `liboqs`，
-运行：
+只构建 Shyake 所需算法（ML-KEM-768 和 ML-DSA-65）的 `liboqs`，运行：
 
 ```sh
 git clone --depth 1 \

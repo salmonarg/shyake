@@ -4,23 +4,20 @@
 
 ### 概述
 
-Shyake 是一个由**后量子密码学**驱动的**端到端加密邮件系统**，
-旨在作为一种去中心化的通信方式，抵御审查与监控。
+Shyake 是一个由**后量子密码学**驱动的**端到端加密邮件系统**，旨在提供一种去中心化，抗审查，防嗅探的通信方式。
 
-服务端运行在 Cloudflare Workers 上，因此任何人都可以零成本托管
-自己的实例。你也可以在自己的硬件上自托管服务端，而不使用
-Cloudflare 全球网络。
+服务端运行在 Cloudflare Workers 上，因此任何人都可以零成本托管自己的实例。你也可以在自己的硬件上自托管服务端，而不使用 Cloudflare 全球网络。
 
 ### 文档
 
-部署你自己的实例：
+部署自己的实例：
 
 * [**部署指南**](./zh-CN/DEPLOY.md)
 
 面向开发者：
 
 * [**开发者指南**](./zh-CN/DEV.md)
-* [**技术规范**](./zh-CN/SPEC.md)
+* [**技术规格**](./zh-CN/SPEC.md)
 
 ### 安装
 
@@ -31,14 +28,13 @@ Cloudflare 全球网络。
 sudo cp ./shyake /usr/local/bin/
 ```
 
-测试是否一切正常：
+测试：
 
 ```sh
 shyake version
 ```
 
-安装完成后，可以使用 `shyake update` 原地升级
-（参见下文的 update 命令）。
+安装完成后，可以使用 `shyake update` 进行客户端更新（参见下文的 update 命令）。
 
 ### 使用方法
 
@@ -52,12 +48,11 @@ shyake init
 shyake register -u salmon -i https://shyake.eee.coffee
 ```
 
-`init` 会要求你设置一个用于保护私钥的口令（passphrase）
-（留空则不设置口令）。使用密钥的命令会提示输入该口令。
+`init` 会要求你设置一个用于保护私钥的口令（passphrase），留空则不设置口令。使用密钥的命令会提示输入该口令。
 
 配置存储在 `~/.config/shyake/`。
 
-你可以在初始化时指定目录来创建多个配置文件（profile）：
+你可以在初始化时指定目录来创建多个用户配置：
 
 ```sh
 shyake init -c path/to/your/dir
@@ -81,8 +76,7 @@ shyake check inbox
 shyake check sent
 ```
 
-可以使用 `--csv` 和 `--json` 将输出格式化为便于机器解析的格式。
-也可以使用 `--no-header` 关闭列标题，或使用 `--count` 只输出数量。
+可以使用 `--csv` 和 `--json` 将输出格式化，以便于机器解析。也可以使用 `--no-header` 关闭列标题，或使用 `--count` 输出数量。
 
 查看某封邮件的邮件头：
 
@@ -90,8 +84,7 @@ shyake check sent
 shyake check fQBjZnvJ56
 ```
 
-列出本地保存的邮件（参见下文的 save 命令），或查看某封已保存
-邮件的邮件头：
+列出本地保存的邮件（参见下文的 save 命令），或查看某封已保存邮件的邮件头：
 
 ```sh
 shyake check saved
@@ -112,8 +105,7 @@ shyake send -t flat_white < content.txt
 
 请注意，主题长度不得超过 128 字节。
 
-使用 `username@instance` 作为收件人，可将邮件发送给外部实例上的
-用户。
+使用 `username@instance` 作为收件人，可将邮件发送给外部实例上的用户。
 
 ```sh
 shyake send -s "Hello" -t flat_white@shyake.example.com < body.txt
@@ -179,8 +171,7 @@ shyake fetch fQBjZnvJ56 -r | base64 -d | tar xzf - -C ./output
 shyake save fQBjZnvJ56
 ```
 
-`read` 解密并显示一封已保存的邮件。输出与 `fetch` 相同，
-同样支持 `-r`/`--raw`。
+`read` 解密并显示一封已保存的邮件。输出与 `fetch` 相同，同样支持 `-r`/`--raw`。
 
 ```sh
 shyake read fQBjZnvJ56
@@ -200,9 +191,7 @@ shyake fingerprint
 shyake fingerprint flat_white
 ```
 
-如果通信对象轮换了密钥对，你可以更新他们的指纹。**警告：在运行
-更新命令之前，请务必通过第二个可信的带外渠道（例如当面确认或
-通过其他平台）核实新指纹，以防身份冒充。**
+如果通信对象轮换了密钥对，你可以更新他们的指纹。**警告：在运行更新命令之前，请务必通过额外的可信带外渠道（例如当面确认或通过其他平台）核实新指纹，以防身份冒充。**
 
 ```sh
 shyake fingerprint flat_white --update
@@ -229,8 +218,7 @@ shyake unblock flat_white
 **update 命令**：
 
 `shyake update` 显示已安装版本和可用版本。使用 `stable` 或
-`preview` 安装对应渠道的最新版本（仅当 preview 比 stable 更新时
-才会提供）。
+`preview` 安装对应渠道的最新版本。
 
 ```sh
 shyake update
@@ -248,9 +236,7 @@ shyake rotate
 
 **destroy 命令**：
 
-删除你的本地配置和密钥对，并销毁你在实例上的账户。所有与你相关
-的收发邮件都会被清除。你的用户名将被永久锁定，无法在该实例上
-再次注册。
+删除你的本地配置和密钥对，并销毁你在实例上的账户。所有与你相关的收发邮件都会被清除。你的用户名将被永久锁定，无法在该实例上再次注册。
 
 ```sh
 shyake destroy
@@ -258,8 +244,7 @@ shyake destroy
 
 ### 高级用法
 
-可以使用 `--no-color` 关闭彩色输出。标准的 `NO_COLOR` 环境变量
-同样受支持。
+可以使用 `--no-color` 关闭彩色输出。标准的 `NO_COLOR` 环境变量亦受支持。
 
 ```sh
 shyake check inbox --no-color
@@ -267,11 +252,9 @@ shyake check fQBjZnvJ56 --no-color
 shyake fetch fQBjZnvJ56 --no-color
 ```
 
-对 `check` 和 `fetch` 命令使用 `--plain` 可以禁用分页器、颜色
-和截断。
+对 `check` 和 `fetch` 命令使用 `--plain` 可以禁用分页器、颜色和截断。
 
-你可以编辑配置文件（位于 `~/.config/shyake/config` 或其他配置
-文件所在目录）来优化设置，例如修改 `check` 命令的列布局。
+你可以编辑配置文件（位于 `~/.config/shyake/config` 或其他配置文件所在目录）来优化设置，例如修改 `check` 命令的列布局。
 
 ```sh
 # Date & Time format (strftime format)
@@ -297,8 +280,7 @@ CHECK_COLUMNS=id,sender,subject,size,date
 DEFAULT_ACTION=0
 ```
 
-设置 `SHYAKE_PASSPHRASE` 环境变量可以非交互式地提供密钥口令，
-例如用于脚本。
+设置 `SHYAKE_PASSPHRASE` 环境变量可以非交互式地提供密钥口令，可用于脚本。
 
 使用 `enc` 和 `dec` 可以通过 ML-KEM-768 + ChaCha20-Poly1305
 加密或解密独立文件。这些命令用于调试/测试目的。
@@ -314,8 +296,7 @@ shyake enc secret.txt -t flat_white -o secret.enc
 shyake dec secret.enc -o secret.txt
 ```
 
-使用 `--debug` 将详细的 `curl` 日志（握手、HTTP 头和内部变量）
-输出到 `stderr`。
+使用 `--debug` 将详细的 `curl` 日志（握手、HTTP 头和内部变量）输出到 `stderr`。
 
 ### 许可证
 

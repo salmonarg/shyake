@@ -2,21 +2,19 @@
 
 [English](../../DEPLOY.md) | 简体中文 | [日本語](../ja/DEPLOY.md)
 
-服务端以带有 D1 数据库的 Cloudflare Worker 形式运行。不过，你也
-可以在自己的硬件上自托管。
+服务端以带有 D1 数据库的 Cloudflare Worker 形式运行。不过，你也可以在自己的硬件上自托管。
 
 部署服务端有两种方式：
 
 * 使用 Cloudflare
 * 自托管
 
-**联合（Federation）**
+**联邦网络**
 
-当两个实例都设置了 `FEDERATION_ENABLED = true` 时，它们会自动
-联合，无需额外配置。跨实例邮件通过服务器到服务器的方式路由；
-客户端始终只与自己的实例通信。
+当两个实例都设置了 `FEDERATION_ENABLED = true` 时，它们会自动进行联邦网络通信，无需额外配置。跨实例邮件以
+server-to-server 的方式路由；客户端始终只与自己的实例通信。
 
-要禁用入站和出站联合：
+要禁用入站和出站的联邦网络通信：
 
 ```toml
 FEDERATION_ENABLED = false
@@ -39,8 +37,7 @@ FEDERATION_ENABLED = false
 npx wrangler login
 ```
 
-如果 Wrangler 尚未安装，`npx` 会在首次运行时提示安装——无需
-单独的安装步骤。
+如果 Wrangler 尚未安装，`npx` 会在首次运行时提示安装——无需单独的安装步骤。
 
 3. **创建 D1 数据库**：
 
@@ -67,8 +64,7 @@ database_id    = "<your database_id>" # 在此粘贴你的 database_id
 migrations_dir = "migrations"
 ```
 
-`[[d1_databases]]` 块必须存在且包含正确的 `database_id`。缺少它
-的话 Worker 没有数据库绑定，所有请求都会失败。
+`[[d1_databases]]` 块必须存在且包含正确的 `database_id`。缺少它的话 Worker 没有数据库绑定，所有请求都会失败。
 
 如果没有自定义域名，可以使用默认的 `*.workers.dev` URL 作为
 `INSTANCE_DOMAIN`。
@@ -80,8 +76,7 @@ cd server
 npx wrangler d1 migrations apply shyake-db --remote
 ```
 
-Cloudflare 的 CI 流水线不会自动应用数据库迁移。你必须手动运行
-一次 `wrangler d1 migrations apply`。跳过这一步会导致数据库为空，
+Cloudflare 的 CI 流水线不会自动应用数据库迁移。你必须手动运行一次 `wrangler d1 migrations apply`。跳过这一步会导致数据库为空，
 Worker 的每次 API 调用都会报错。
 
 6. **部署**
@@ -90,8 +85,7 @@ Worker 的每次 API 调用都会报错。
 
 **方式 A —— 控制台（Dashboard）**：在 Cloudflare 控制台中进入
 `Compute → Workers & Pages → Create application → Continue with GitHub`
-（首次使用可能需要先 `Add GitHub account`），选择你的 fork，并
-设置：
+（首次使用可能需要先 `Add GitHub account`），选择你的 fork，并设置：
 
 | 字段 | 值 |
 |-------|-------|
@@ -113,8 +107,7 @@ npx wrangler deploy
 7. **验证**
 
 等待部署完成，然后打开
-`https://<worker>.workers.dev/health`（或你的自定义域名）。
-返回 `200 OK` 即表示 Worker 和数据库工作正常。
+`https://<worker>.workers.dev/health`（或你的自定义域名）。返回 `200 OK` 即表示 Worker 和数据库工作正常。
 
 ### 自托管
 
