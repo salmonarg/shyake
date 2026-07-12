@@ -1,4 +1,4 @@
-## Shyake — Technical Specification
+## Shyake Technical Specification
 
 Copyright (c) 2026 Salmonization. BSD 2-Clause License.
 

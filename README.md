@@ -1,5 +1,7 @@
 ## Shyake
 
+English | [简体中文](./docs/i18n/README.zh-CN.md) | [日本語](./docs/i18n/README.ja.md)
+
 ### Overview
 
 Shyake is an **end-to-end encrypted mail system** powered by
