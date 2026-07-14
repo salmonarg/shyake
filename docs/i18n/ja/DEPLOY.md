@@ -2,6 +2,8 @@
 
 [English](../../DEPLOY.md) | [简体中文](../zh-CN/DEPLOY.md) | 日本語
 
+> Translated by Claude Fable 5
+
 サーバーは D1 データベースを備えた Cloudflare Worker として動作します。ただし、自分のハードウェア上でセルフホストすることも可能です。
 
 サーバーのデプロイ方法は 2 通りあります：

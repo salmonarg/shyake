@@ -2,6 +2,8 @@
 
 [English](../../DEV.md) | [简体中文](../zh-CN/DEV.md) | 日本語
 
+> Translated by Claude Fable 5
+
 このドキュメントは Shyake の開発を支援するものです。
 
 **目次**：

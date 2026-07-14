@@ -2,6 +2,8 @@
 
 [English](../../SPEC.md) | [简体中文](../zh-CN/SPEC.md) | 日本語
 
+> Translated by Claude Fable 5
+
 Copyright (c) 2026 Salmonization. BSD 2-Clause License.
 
 <table>

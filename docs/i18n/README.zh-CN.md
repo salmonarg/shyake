@@ -2,9 +2,11 @@
 
 [English](../../README.md) | 简体中文 | [日本語](./README.ja.md)
 
+> Translated by Claude Fable 5
+
 ### 概述
 
-Shyake 是一个由**后量子密码学**驱动的**端到端加密邮件系统**，旨在提供一种去中心化，抗审查，防嗅探的通信方式。
+Shyake 是一个由**后量子密码学**驱动的**端到端加密邮件系统**，旨在提供一种去中心化，抗审查，防监控的通信方式。
 
 服务端运行在 Cloudflare Workers 上，因此任何人都可以零成本托管自己的实例。你也可以在自己的硬件上自托管服务端，而不使用 Cloudflare 全球网络。
 
@@ -34,7 +36,7 @@ sudo cp ./shyake /usr/local/bin/
 shyake version
 ```
 
-安装完成后，可以使用 `shyake update` 进行客户端更新（参见下文的 update 命令）。
+安装完成后，可以使用 `shyake update` 对客户端进行更新（参见下文的 update 命令）。
 
 ### 使用方法
 
@@ -48,17 +50,17 @@ shyake init
 shyake register -u salmon -i https://shyake.eee.coffee
 ```
 
-`init` 会要求你设置一个用于保护私钥的口令（passphrase），留空则不设置口令。使用密钥的命令会提示输入该口令。
+`init` 会要求你设置一个用于保护私钥的 passphrase，留空则不设置 passphrase。执行需要使用到密钥的命令时会提示输入该 passphrase。
 
-配置存储在 `~/.config/shyake/`。
+配置文件存储在 `~/.config/shyake/`。
 
-你可以在初始化时指定目录来创建多个用户配置：
+你可以在初始化时指定目录来创建多个 profile：
 
 ```sh
 shyake init -c path/to/your/dir
 ```
 
-这种情况下，使用该配置文件时总是需要加上 `-c` 选项。
+这种情况下，使用该 profile 时总是需要加上 `-c` 选项。
 
 使用 `whoami` 命令查看当前配置文件。
 
@@ -151,7 +153,7 @@ Subject: Coffee tomorrow?
 The mail body goes here.
 ```
 
-收件人、主题和正文在磁盘上全部加密。保存草稿不需要口令（只用到你的公钥）。列出或阅读草稿则需要解锁你的私钥。
+收件人、主题和正文在磁盘上全部加密。保存草稿不需要 passphrase（只用到你的公钥）。列出或阅读草稿则需要解锁你的私钥。
 
 将 `To:` 留空，草稿就成为一篇私密日记——`check drafts` 会将其显示为 `(diary)`：
 
@@ -328,7 +330,7 @@ CHECK_COLUMNS=id,sender,subject,size,date
 DEFAULT_ACTION=0
 ```
 
-设置 `SHYAKE_PASSPHRASE` 环境变量可以非交互式地提供密钥口令，可用于脚本。
+设置 `SHYAKE_PASSPHRASE` 环境变量可以非交互式地提供密钥 passphrase，可用于脚本。
 
 使用 `enc` 和 `dec` 可以通过 ML-KEM-768 + ChaCha20-Poly1305
 加密或解密独立文件。这些命令用于调试/测试目的。

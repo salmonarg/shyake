@@ -2,6 +2,8 @@
 
 [English](../../README.md) | [简体中文](./README.zh-CN.md) | 日本語
 
+> Translated by Claude Fable 5
+
 ### 概要
 
 Shyake は**耐量子暗号**（ポスト量子暗号）を用いた

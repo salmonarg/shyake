@@ -2,7 +2,9 @@
 
 [English](../../DEV.md) | 简体中文 | [日本語](../ja/DEV.md)
 
-本文档帮助你为 Shyake 进行开发。
+> Translated by Claude Fable 5
+
+本文档帮助你参与 Shyake 的开发，或二次开发。
 
 **目录**：
 

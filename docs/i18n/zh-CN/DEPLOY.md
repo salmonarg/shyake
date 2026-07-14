@@ -2,6 +2,8 @@
 
 [English](../../DEPLOY.md) | 简体中文 | [日本語](../ja/DEPLOY.md)
 
+> Translated by Claude Fable 5
+
 服务端以带有 D1 数据库的 Cloudflare Worker 形式运行。不过，你也可以在自己的硬件上自托管。
 
 部署服务端有两种方式：
