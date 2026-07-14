@@ -10,11 +10,12 @@ RESERVED_USERNAMES = "admin,system,support,noreply,shyake,root,postmaster"
 FEDERATION_ENABLED = true
 MAX_MAIL_SIZE = 196608 # 192 KiB
 
-# shyake.eee.coffee only
-# you can leave this commented out
-# [[kv_namespaces]]
-# binding = "VERSION_CACHE"
-# id = "00000000000000000000000000000000"
+# caches /api/client/version lookups for one hour
+# create with: npx wrangler kv namespace create VERSION_CACHE
+# optional: without it the endpoint hits GitHub on every request
+[[kv_namespaces]]
+binding = "VERSION_CACHE"
+id = "00000000000000000000000000000000"
 
 [[d1_databases]]
 binding = "DB"

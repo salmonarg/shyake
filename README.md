@@ -302,7 +302,10 @@ shyake unblock flat_white
 
 **Update command**:
 
-`shyake update` shows the installed and available versions. Use
+`shyake update` shows the installed and available versions. The
+version lookup goes through your own instance (which relays the
+GitHub Releases API); `shyake.eee.coffee` is only a built-in
+fallback used when no instance is configured. Use
 `stable` or `preview` to install the latest release from that channel
 (preview is only offered when newer than stable).
 

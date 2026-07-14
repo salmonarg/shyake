@@ -76,10 +76,11 @@ bash tests/e2e_test.sh      # from repo root: tests/e2e_test.sh
 ```
 shyake/
 ├── client/                 # C client
-│   ├── src/lib/            # core library (account, crypto, mail, network,
-│   │   │                   #   passphrase, known_hosts, update)
+│   ├── src/lib/            # core library (account, crypto, mail, drafts,
+│   │   │                   #   network, passphrase, known_hosts, enc_dec,
+│   │   │                   #   update)
 │   │   └── vendor/cJSON/   # vendored JSON parser
-│   ├── src/cli/            # CLI entry, arg parsing, display, prompts
+│   ├── src/cli/            # CLI entry, init, display, prompts
 │   ├── include/shyake.h    # public FFI API (opaque context pointer)
 │   ├── tests/              # unit tests + test account fixtures
 │   └── Makefile
@@ -93,7 +94,8 @@ shyake/
 └── docs/
     ├── SPEC.md             # technical specification (protocol, crypto)
     ├── DEV.md              # developer guide (deps, build, testing)
-    └── DEPLOY.md           # self-hosting deployment guide
+    ├── DEPLOY.md           # self-hosting deployment guide
+    └── i18n/               # zh-CN & ja translations (READMEs + docs)
 ```
 
 Architecture notes:
@@ -146,3 +148,13 @@ Update the relevant doc when behavior changes:
 - Build, dependencies, testing — [docs/DEV.md](docs/DEV.md)
 - Deployment / self-hosting — [docs/DEPLOY.md](docs/DEPLOY.md)
 - User-facing CLI usage — [README.md](README.md)
+
+Keep the zh-CN and ja translations under `docs/i18n/` in sync with
+any English doc you change. The Japanese SPEC.md uses だ・である調
+(plain form); CJK paragraphs must not be hard-wrapped mid-sentence
+(a CJK-CJK line break renders as a stray space).
+
+Wording: all instances are peers — avoid "official instance" or
+"third-party instance". Refer to `shyake.eee.coffee` by name and
+describe it as the client's built-in fallback (used only when no
+instance is configured).

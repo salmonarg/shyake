@@ -266,7 +266,7 @@ shyake unblock flat_white
 
 **update コマンド**：
 
-`shyake update` はインストール済みバージョンと利用可能なバージョンを表示します。`stable` または `preview` を指定すると、そのチャネルの最新リリースをインストールします（preview は
+`shyake update` はインストール済みバージョンと利用可能なバージョンを表示します。バージョンの照会は自分のインスタンス経由で行われます（インスタンスが GitHub Releases API を中継します）。`shyake.eee.coffee` は組み込みのフォールバックにすぎず、インスタンスが未設定の場合にのみ使用されます。`stable` または `preview` を指定すると、そのチャネルの最新リリースをインストールします（preview は
 stable より新しい場合にのみ提供されます）。
 
 ```sh

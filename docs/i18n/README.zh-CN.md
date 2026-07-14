@@ -265,7 +265,7 @@ shyake unblock flat_white
 
 **update 命令**：
 
-`shyake update` 显示已安装版本和可用版本。使用 `stable` 或
+`shyake update` 显示已安装版本和可用版本。版本查询通过你自己的实例进行（由实例中继 GitHub Releases API）；`shyake.eee.coffee` 只是内置的回退目标，仅在未配置实例时使用。使用 `stable` 或
 `preview` 安装对应渠道的最新版本。
 
 ```sh

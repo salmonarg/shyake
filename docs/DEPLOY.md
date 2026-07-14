@@ -49,7 +49,19 @@ npx wrangler d1 create shyake-db
 
 Copy the `database_id` from the output.
 
-4. **Edit `server/wrangler.toml`** in your fork:
+4. **Create the KV namespace** (version relay cache):
+
+```sh
+npx wrangler kv namespace create VERSION_CACHE
+```
+
+Copy the `id` from the output. Every instance relays the GitHub
+Releases API for `shyake update` on its own clients; this KV
+namespace caches the lookup for one hour. The binding is optional —
+without it the endpoint still works but hits GitHub on every
+request.
+
+5. **Edit `server/wrangler.toml`** in your fork:
 
 ```toml
 [vars]
@@ -64,6 +76,10 @@ binding        = "DB"
 database_name  = "shyake-db"
 database_id    = "<your database_id>" # paste your database_id here
 migrations_dir = "migrations"
+
+[[kv_namespaces]]
+binding = "VERSION_CACHE"
+id      = "<your kv namespace id>" # paste your KV namespace id here
 ```
 
 The `[[d1_databases]]` block must be present and contain the
@@ -73,7 +89,7 @@ binding and every request will fail.
 You can use the default `*.workers.dev` URL as `INSTANCE_DOMAIN`
 if you do not have a custom domain.
 
-5. **Apply database migrations** (creates all tables):
+6. **Apply database migrations** (creates all tables):
 
 ```sh
 cd server
@@ -85,7 +101,7 @@ automatically. You must run `wrangler d1 migrations apply` once
 manually. Skipping this leaves the database empty and the Worker
 will error on every API call.
 
-6. **Deploy**
+7. **Deploy**
 
 Choose one of the following:
 
@@ -111,7 +127,7 @@ npm install
 npx wrangler deploy
 ```
 
-7. **Verify**
+8. **Verify**
 
 Wait for deployment to complete and then open
 `https://<worker>.workers.dev/health` (or your custom domain).

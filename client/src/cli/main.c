@@ -12,7 +12,25 @@
 #ifndef SHYAKE_VERSION
 #define SHYAKE_VERSION "dev"
 #endif
-#define SHYAKE_VERSION_URL "https://shyake.eee.coffee/api/client/version"
+#define SHYAKE_FALLBACK_VERSION_URL \
+    "https://shyake.eee.coffee/api/client/version"
+
+/* version endpoint on own instance, fallback when unregistered */
+static char*
+build_version_url(const char *instance)
+{
+    if (!instance || !*instance)
+        return strdup(SHYAKE_FALLBACK_VERSION_URL);
+    size_t len = strlen(instance);
+    while (len > 0 && instance[len - 1] == '/')
+        len--;
+    const char *path = "/api/client/version";
+    char *url = malloc(len + strlen(path) + 1);
+    if (!url) return NULL;
+    memcpy(url, instance, len);
+    strcpy(url + len, path);
+    return url;
+}
 
 int cmd_init(const char *config_dir);
 
@@ -2201,11 +2219,19 @@ int main(int argc, char *argv[])
             .no_color = global_no_color || app_cfg->no_color
         };
         shyake_ctx *ctx = shyake_init_ctx(&cfg);
+        char *version_url = build_version_url(app_cfg->instance);
+        if (!version_url) {
+            shyake_free_ctx(ctx);
+            free_app_config(app_cfg);
+            free(config_dir);
+            return EXIT_FAILURE;
+        }
 
         /* update (no args) — show version info */
         if (argc < 3) {
             shyake_version_info *info = shyake_get_latest_version(
-                ctx, SHYAKE_VERSION_URL);
+                ctx, version_url);
+            free(version_url);
             shyake_free_ctx(ctx);
             free_app_config(app_cfg);
             free(config_dir);
@@ -2259,14 +2285,16 @@ int main(int argc, char *argv[])
         } else {
             fprintf(stderr,
                     "Usage: shyake update [stable|preview]\n");
+            free(version_url);
             shyake_free_ctx(ctx);
             free_app_config(app_cfg);
             free(config_dir);
             return EXIT_FAILURE;
         }
 
-        shyake_err ret = shyake_self_update(ctx, SHYAKE_VERSION_URL,
+        shyake_err ret = shyake_self_update(ctx, version_url,
                                              SHYAKE_VERSION, channel);
+        free(version_url);
         shyake_free_ctx(ctx);
         free_app_config(app_cfg);
         free(config_dir);

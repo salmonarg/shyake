@@ -46,7 +46,16 @@ npx wrangler d1 create shyake-db
 
 出力から `database_id` をコピーします。
 
-4. fork 内の **`server/wrangler.toml` を編集**します：
+4. **KV ネームスペースを作成**します（バージョン中継キャッシュ）：
+
+```sh
+npx wrangler kv namespace create VERSION_CACHE
+```
+
+出力から `id` をコピーします。各インスタンスは自身のクライアント向けに GitHub Releases API を中継して `shyake update`
+を支えます。この KV ネームスペースはその照会結果を 1 時間キャッシュします。このバインディングは省略可能です——なくてもエンドポイントは動作しますが、リクエストごとに GitHub へアクセスします。
+
+5. fork 内の **`server/wrangler.toml` を編集**します：
 
 ```toml
 [vars]
@@ -61,6 +70,10 @@ binding        = "DB"
 database_name  = "shyake-db"
 database_id    = "<your database_id>" # ここに database_id を貼り付け
 migrations_dir = "migrations"
+
+[[kv_namespaces]]
+binding = "VERSION_CACHE"
+id      = "<your kv namespace id>" # ここに KV ネームスペースの id を貼り付け
 ```
 
 `[[d1_databases]]` ブロックは必ず存在し、正しい `database_id`
@@ -69,7 +82,7 @@ migrations_dir = "migrations"
 カスタムドメインを持っていない場合は、デフォルトの
 `*.workers.dev` URL を `INSTANCE_DOMAIN` として使用できます。
 
-5. **データベースマイグレーションを適用**します（すべてのテーブルが作成されます）：
+6. **データベースマイグレーションを適用**します（すべてのテーブルが作成されます）：
 
 ```sh
 cd server
@@ -78,7 +91,7 @@ npx wrangler d1 migrations apply shyake-db --remote
 
 Cloudflare の CI パイプラインはデータベースマイグレーションを自動では適用しません。`wrangler d1 migrations apply` を一度手動で実行する必要があります。これを省略するとデータベースが空のままになり、Worker はすべての API 呼び出しでエラーになります。
 
-6. **デプロイ**
+7. **デプロイ**
 
 以下のいずれかを選択します：
 
@@ -103,7 +116,7 @@ npm install
 npx wrangler deploy
 ```
 
-7. **確認**
+8. **確認**
 
 デプロイの完了を待ってから
 `https://<worker>.workers.dev/health`（またはカスタムドメイン）を開きます。`200 OK` が返れば、Worker とデータベースが正常に動作しています。

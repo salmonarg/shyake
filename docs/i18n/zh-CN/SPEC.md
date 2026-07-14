@@ -522,7 +522,9 @@ API 分组：上下文生命周期、密钥生成、PoW 铸造、注册、邮件
 代理 GitHub Releases API，选取每个渠道的最新标签，并将结果在
 KV 中缓存一小时。
 
-`shyake update` 获取该端点并使用 semver 排序比较标签（`vX.Y.Z`；同一基础版本下正式发布高于预发布）。仅当 preview
+`shyake update` 从**用户自己的实例**（profile 配置中的
+`INSTANCE`）获取该端点，因此每个实例都用自己的 KV 缓存中继
+GitHub API；`shyake.eee.coffee` 只是内置的回退目标，仅在未配置实例时使用。标签使用 semver 排序比较（`vX.Y.Z`；同一基础版本下正式发布高于预发布）。仅当 preview
 渠道比 stable 更新时才会提供。
 
 `shyake update stable|preview` 执行自更新：

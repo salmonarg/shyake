@@ -47,7 +47,16 @@ npx wrangler d1 create shyake-db
 
 从输出中复制 `database_id`。
 
-4. **编辑你 fork 中的 `server/wrangler.toml`**：
+4. **创建 KV 命名空间**（版本中继缓存）：
+
+```sh
+npx wrangler kv namespace create VERSION_CACHE
+```
+
+从输出中复制 `id`。每个实例都会为自己的客户端中继 GitHub
+Releases API 以支持 `shyake update`；此 KV 命名空间将查询结果缓存一小时。该绑定是可选的——没有它端点仍然可用，只是每次请求都会访问 GitHub。
+
+5. **编辑你 fork 中的 `server/wrangler.toml`**：
 
 ```toml
 [vars]
@@ -62,6 +71,10 @@ binding        = "DB"
 database_name  = "shyake-db"
 database_id    = "<your database_id>" # 在此粘贴你的 database_id
 migrations_dir = "migrations"
+
+[[kv_namespaces]]
+binding = "VERSION_CACHE"
+id      = "<your kv namespace id>" # 在此粘贴你的 KV 命名空间 id
 ```
 
 `[[d1_databases]]` 块必须存在且包含正确的 `database_id`。缺少它的话 Worker 没有数据库绑定，所有请求都会失败。
@@ -69,7 +82,7 @@ migrations_dir = "migrations"
 如果没有自定义域名，可以使用默认的 `*.workers.dev` URL 作为
 `INSTANCE_DOMAIN`。
 
-5. **应用数据库迁移**（创建所有表）：
+6. **应用数据库迁移**（创建所有表）：
 
 ```sh
 cd server
@@ -79,7 +92,7 @@ npx wrangler d1 migrations apply shyake-db --remote
 Cloudflare 的 CI 流水线不会自动应用数据库迁移。你必须手动运行一次 `wrangler d1 migrations apply`。跳过这一步会导致数据库为空，
 Worker 的每次 API 调用都会报错。
 
-6. **部署**
+7. **部署**
 
 选择以下方式之一：
 
@@ -104,7 +117,7 @@ npm install
 npx wrangler deploy
 ```
 
-7. **验证**
+8. **验证**
 
 等待部署完成，然后打开
 `https://<worker>.workers.dev/health`（或你的自定义域名）。返回 `200 OK` 即表示 Worker 和数据库工作正常。

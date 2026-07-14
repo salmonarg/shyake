@@ -628,7 +628,11 @@ releases) and **preview** (pre-releases). The server endpoint
 newest tag of each channel, and caches the result in KV for one
 hour.
 
-`shyake update` fetches this endpoint and compares tags using semver
+`shyake update` fetches this endpoint from the **user's own
+instance** (`INSTANCE` in the profile config), so every instance
+relays the GitHub API with its own KV cache; `shyake.eee.coffee` is
+only a built-in fallback used when no instance is configured. Tags
+are compared using semver
 ordering (`vX.Y.Z`; a release outranks a pre-release of the same
 base version). The preview channel is offered only when it is newer
 than stable.
