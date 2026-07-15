@@ -1,5 +1,5 @@
 CC ?= gcc
-VERSION ?= v0.2.1-indev.1
+VERSION ?= v0.2.1-indev.2
 
 # detect OS and architecture
 OS   := $(shell uname -s)
