@@ -77,10 +77,10 @@ bash tests/e2e_test.sh      # from repo root: tests/e2e_test.sh
 shyake/
 ├── client/                 # C client
 │   ├── src/lib/            # core library (account, crypto, mail, drafts,
-│   │   │                   #   network, passphrase, known_hosts, enc_dec,
-│   │   │                   #   update)
+│   │   │                   #   network, passphrase, known_hosts, enc_dec)
 │   │   └── vendor/cJSON/   # vendored JSON parser
-│   ├── src/cli/            # CLI entry, init, display, prompts
+│   ├── src/cli/            # CLI entry, init, display, prompts,
+│   │                       #   self-update
 │   ├── include/shyake.h    # public FFI API (opaque context pointer)
 │   ├── tests/              # unit tests + test account fixtures
 │   └── Makefile
@@ -100,9 +100,23 @@ shyake/
 
 Architecture notes:
 
-- The CLI (`src/cli/`) links against `libshyake.a` and talks to the
-  library only through `include/shyake.h`; keep core logic in
-  `src/lib/` and out of the CLI layer.
+- **`src/lib/` is `libshyake`, not "the client's backend".** It must
+  contain only core, universally applicable protocol logic: crypto
+  (keygen, encrypt/decrypt, sign/verify), wire-format encoding, and
+  the network send/receive operations defined in `docs/SPEC.md`. Any
+  developer should be able to build their own fully protocol-compatible
+  client — TUI, GUI, any language via FFI — on top of `libshyake`
+  alone.
+- **`src/cli/` is one reference client, not the only one.** Anything
+  specific to this particular CLI distribution belongs there:
+  argument parsing, display, interactive prompts, self-update /
+  install logic, and user-facing messages.
+- The library should not print user-facing output or invoke shell
+  commands; it returns `shyake_err` codes and data, and the client
+  decides how to present them. (Some legacy `fprintf(stderr, ...)`
+  calls remain in `src/lib/` — do not add more.)
+- The CLI links against `libshyake.a` and talks to the library only
+  through `include/shyake.h`.
 - Internal library headers are `lib_internal.h` / `internal.h`; do not
   expose internals through `shyake.h` unless the FFI needs them.
 - Server API changes must stay in sync with the client's network layer

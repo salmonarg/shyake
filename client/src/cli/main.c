@@ -8,6 +8,7 @@
 #include "shyake.h"
 #include "display.h"
 #include "prompt.h"
+#include "update.h"
 
 #ifndef SHYAKE_VERSION
 #define SHYAKE_VERSION "dev"
@@ -2269,18 +2270,8 @@ int main(int argc, char *argv[])
     }
 
     if (strcmp(cmd, "update") == 0) {
-        shyake_config cfg = {
-            .config_dir = config_dir,
-            .instance_url = app_cfg->instance ? app_cfg->instance : "",
-            .username = app_cfg->username ? app_cfg->username : "",
-            .plain = global_plain,
-            .debug = global_debug,
-            .no_color = global_no_color || app_cfg->no_color
-        };
-        shyake_ctx *ctx = shyake_init_ctx(&cfg);
         char *version_url = build_version_url(app_cfg->instance);
         if (!version_url) {
-            shyake_free_ctx(ctx);
             free_app_config(app_cfg);
             free(config_dir);
             return EXIT_FAILURE;
@@ -2288,10 +2279,9 @@ int main(int argc, char *argv[])
 
         /* update (no args) — show version info */
         if (argc < 3) {
-            shyake_version_info *info = shyake_get_latest_version(
-                ctx, version_url);
+            cli_version_info *info = cli_get_latest_version(
+                version_url, global_debug);
             free(version_url);
-            shyake_free_ctx(ctx);
             free_app_config(app_cfg);
             free(config_dir);
 
@@ -2302,8 +2292,8 @@ int main(int argc, char *argv[])
             }
 
             int show_preview = info->pre_release &&
-                shyake_version_cmp(info->pre_release,
-                                   info->release) > 0;
+                cli_version_cmp(info->pre_release,
+                                info->release) > 0;
 
             printf("Installed: %s\n", SHYAKE_VERSION);
             printf("Stable:    %s\n",
@@ -2330,34 +2320,32 @@ int main(int argc, char *argv[])
                            "the preview release.\n");
             }
 
-            shyake_free_version_info(info);
+            cli_free_version_info(info);
             return EXIT_SUCCESS;
         }
 
         /* update stable | update preview */
         const char *subcmd = argv[2];
-        shyake_update_channel channel;
+        cli_update_channel channel;
         if (strcmp(subcmd, "stable") == 0) {
-            channel = SHYAKE_UPDATE_STABLE;
+            channel = CLI_UPDATE_STABLE;
         } else if (strcmp(subcmd, "preview") == 0) {
-            channel = SHYAKE_UPDATE_PREVIEW;
+            channel = CLI_UPDATE_PREVIEW;
         } else {
             fprintf(stderr,
                     "Usage: shyake update [stable|preview]\n");
             free(version_url);
-            shyake_free_ctx(ctx);
             free_app_config(app_cfg);
             free(config_dir);
             return EXIT_FAILURE;
         }
 
-        shyake_err ret = shyake_self_update(ctx, version_url,
-                                             SHYAKE_VERSION, channel);
+        int ret = cli_self_update(version_url, SHYAKE_VERSION,
+                                  channel, global_debug);
         free(version_url);
-        shyake_free_ctx(ctx);
         free_app_config(app_cfg);
         free(config_dir);
-        return ret == SHYAKE_OK ? EXIT_SUCCESS : EXIT_FAILURE;
+        return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
     }
 
     fprintf(stderr, "Unknown command: %s\n", cmd);

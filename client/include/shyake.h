@@ -285,46 +285,4 @@ shyake_err shyake_dec_file(shyake_ctx *ctx,
                             const char *in_path,
                             const char *out_path);
 
-/* --- Client version --- */
-
-typedef struct {
-    char *release;            /* latest stable tag, e.g. "v0.1.1" */
-    char *pre_release;        /* latest pre-release tag, may be NULL */
-    char *release_digest;     /* sha256 hex of this platform's stable
-                                 asset, may be NULL */
-    char *pre_release_digest; /* same for the preview asset */
-} shyake_version_info;
-
-typedef enum {
-    SHYAKE_UPDATE_STABLE  = 0,
-    SHYAKE_UPDATE_PREVIEW = 1,
-} shyake_update_channel;
-
-void shyake_free_version_info(shyake_version_info *v);
-
-/*
- * Semver comparison: >0 if a>b, <0 if a<b, 0 if equal.
- * Handles "vX.Y.Z" and "vX.Y.Z-prerelease" (release > prerelease).
- */
-int shyake_version_cmp(const char *a, const char *b);
-
-/*
- * Query version_url for latest client version.
- * Returns allocated shyake_version_info* on success, NULL on failure.
- */
-shyake_version_info* shyake_get_latest_version(shyake_ctx *ctx,
-                                                const char *version_url);
-
-/*
- * Download and install the latest stable or preview release binary.
- * version_url: URL of the version API endpoint.
- * current_version: running version string (e.g. "v0.1.1").
- * channel: SHYAKE_UPDATE_STABLE or SHYAKE_UPDATE_PREVIEW.
- * Returns SHYAKE_OK on success.
- */
-shyake_err shyake_self_update(shyake_ctx *ctx,
-                               const char *version_url,
-                               const char *current_version,
-                               shyake_update_channel channel);
-
 #endif /* SHYAKE_H */

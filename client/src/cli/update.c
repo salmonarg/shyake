@@ -2,17 +2,60 @@
 #include <string.h>
 #include <strings.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <unistd.h>
 #include <curl/curl.h>
 #include <openssl/sha.h>
-#include "vendor/cJSON/cJSON.h"
-#include "lib_internal.h"
+#include "cJSON.h"
+#include "update.h"
 #if defined(__APPLE__)
 #include <mach-o/dyld.h>
 #endif
 
+/* growable buffer for curl responses */
+struct mem_buf {
+    char *data;
+    size_t size;
+};
+
+static size_t
+mem_write_cb(void *contents, size_t size, size_t nmemb, void *userp)
+{
+    size_t total = size * nmemb;
+    struct mem_buf *buf = userp;
+    char *p = realloc(buf->data, buf->size + total + 1);
+    if (!p) return 0;
+    buf->data = p;
+    memcpy(buf->data + buf->size, contents, total);
+    buf->size += total;
+    buf->data[buf->size] = '\0';
+    return total;
+}
+
+/* read whole file into malloc'd buffer */
+static uint8_t*
+read_file(const char *path, size_t *len)
+{
+    FILE *f = fopen(path, "rb");
+    if (!f) return NULL;
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (sz < 0) { fclose(f); return NULL; }
+    uint8_t *data = malloc((size_t)sz);
+    if (!data) { fclose(f); return NULL; }
+    if (fread(data, 1, (size_t)sz, f) != (size_t)sz) {
+        free(data);
+        fclose(f);
+        return NULL;
+    }
+    fclose(f);
+    *len = (size_t)sz;
+    return data;
+}
+
 void
-shyake_free_version_info(shyake_version_info *v)
+cli_free_version_info(cli_version_info *v)
 {
     if (!v) return;
     free(v->release);
@@ -70,7 +113,7 @@ parse_ver(const char *s, int *maj, int *min, int *pat, int *has_pre)
 }
 
 int
-shyake_version_cmp(const char *a, const char *b)
+cli_version_cmp(const char *a, const char *b)
 {
     int a_maj, a_min, a_pat, a_pre;
     int b_maj, b_min, b_pat, b_pre;
@@ -85,27 +128,27 @@ shyake_version_cmp(const char *a, const char *b)
     return 0;
 }
 
-shyake_version_info*
-shyake_get_latest_version(shyake_ctx *ctx, const char *version_url)
+cli_version_info*
+cli_get_latest_version(const char *version_url, int debug)
 {
-    if (!ctx || !version_url) return NULL;
+    if (!version_url) return NULL;
 
     CURL *curl = curl_easy_init();
     if (!curl) return NULL;
 
-    if (ctx->debug)
+    if (debug)
         curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
 
-    struct curl_response resp = { .data = malloc(1), .size = 0 };
+    struct mem_buf resp = { .data = malloc(1), .size = 0 };
     resp.data[0] = '\0';
 
     curl_easy_setopt(curl, CURLOPT_URL, version_url);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_write_cb);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, mem_write_cb);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&resp);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
 
     CURLcode res = curl_easy_perform(curl);
-    shyake_version_info *info = NULL;
+    cli_version_info *info = NULL;
 
     if (res == CURLE_OK) {
         long http_code;
@@ -120,7 +163,7 @@ shyake_get_latest_version(shyake_ctx *ctx, const char *version_url)
                 snprintf(asset, sizeof(asset), "%s.tar.gz",
                          platform_artifact());
 
-                info = calloc(1, sizeof(shyake_version_info));
+                info = calloc(1, sizeof(cli_version_info));
                 if (rel && cJSON_IsString(rel))
                     info->release = strdup(rel->valuestring);
                 if (pre && cJSON_IsString(pre))
@@ -142,8 +185,8 @@ shyake_get_latest_version(shyake_ctx *ctx, const char *version_url)
 
 /* download a URL to a tmp file, return allocated path or NULL */
 static char*
-download_to_tmp(shyake_ctx *ctx, const char *download_url,
-                const char *filename)
+download_to_tmp(const char *download_url, const char *filename,
+                int debug)
 {
     char *tmp_path = malloc(256);
     snprintf(tmp_path, 256, "/tmp/%s", filename);
@@ -158,7 +201,7 @@ download_to_tmp(shyake_ctx *ctx, const char *download_url,
         return NULL;
     }
 
-    if (ctx->debug)
+    if (debug)
         curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
 
     curl_easy_setopt(curl, CURLOPT_URL, download_url);
@@ -190,7 +233,7 @@ verify_sha256(const char *file_path, const char *expected_hex)
         return -1;
 
     size_t data_len = 0;
-    uint8_t *data = load_file(file_path, &data_len);
+    uint8_t *data = read_file(file_path, &data_len);
     if (!data) return -1;
 
     unsigned char digest[SHA256_DIGEST_LENGTH];
@@ -204,59 +247,56 @@ verify_sha256(const char *file_path, const char *expected_hex)
     return strcasecmp(expected_hex, actual) == 0 ? 0 : -1;
 }
 
-shyake_err
-shyake_self_update(shyake_ctx *ctx, const char *version_url,
-                   const char *current_version,
-                   shyake_update_channel channel)
+int
+cli_self_update(const char *version_url, const char *current_version,
+                cli_update_channel channel, int debug)
 {
-    if (!ctx) return SHYAKE_ERR;
-
-    shyake_version_info *info = shyake_get_latest_version(ctx, version_url);
+    cli_version_info *info = cli_get_latest_version(version_url, debug);
     if (!info) {
         fprintf(stderr, "Failed to fetch version info.\n");
-        return SHYAKE_ERR_NETWORK;
+        return -1;
     }
 
     if (!info->release) {
-        shyake_free_version_info(info);
+        cli_free_version_info(info);
         fprintf(stderr, "No stable release available.\n");
-        return SHYAKE_ERR;
+        return -1;
     }
 
-    const char *target = (channel == SHYAKE_UPDATE_PREVIEW)
+    const char *target = (channel == CLI_UPDATE_PREVIEW)
         ? info->pre_release : info->release;
-    const char *channel_name = (channel == SHYAKE_UPDATE_PREVIEW)
+    const char *channel_name = (channel == CLI_UPDATE_PREVIEW)
         ? "preview" : "stable";
 
     if (!target) {
         fprintf(stderr, "No %s release available.\n", channel_name);
-        shyake_free_version_info(info);
-        return SHYAKE_ERR;
+        cli_free_version_info(info);
+        return -1;
     }
 
     /* reject preview that is not newer than stable */
-    if (channel == SHYAKE_UPDATE_PREVIEW &&
-        shyake_version_cmp(info->pre_release, info->release) <= 0) {
+    if (channel == CLI_UPDATE_PREVIEW &&
+        cli_version_cmp(info->pre_release, info->release) <= 0) {
         fprintf(stderr,
                 "No preview release available newer than stable.\n");
-        shyake_free_version_info(info);
-        return SHYAKE_ERR;
+        cli_free_version_info(info);
+        return -1;
     }
 
     /* already on the requested target */
     if (current_version && strcmp(current_version, target) == 0) {
         printf("Already on the latest %s release.\n", channel_name);
-        shyake_free_version_info(info);
-        return SHYAKE_OK;
+        cli_free_version_info(info);
+        return 0;
     }
 
-    const char *digest = (channel == SHYAKE_UPDATE_PREVIEW)
+    const char *digest = (channel == CLI_UPDATE_PREVIEW)
         ? info->pre_release_digest : info->release_digest;
     if (!digest) {
         fprintf(stderr,
                 "No checksum available for this platform.\n");
-        shyake_free_version_info(info);
-        return SHYAKE_ERR;
+        cli_free_version_info(info);
+        return -1;
     }
 
     const char *artifact = platform_artifact();
@@ -270,19 +310,19 @@ shyake_self_update(shyake_ctx *ctx, const char *version_url,
 
     fprintf(stderr, "Downloading %s %s...\n", target, asset);
 
-    char *tar_path = download_to_tmp(ctx, dl_url, asset);
+    char *tar_path = download_to_tmp(dl_url, asset, debug);
     if (!tar_path) {
         fprintf(stderr, "Failed to download release archive.\n");
-        shyake_free_version_info(info);
-        return SHYAKE_ERR_NETWORK;
+        cli_free_version_info(info);
+        return -1;
     }
 
     /* verify sha256 */
     if (verify_sha256(tar_path, digest) != 0) {
         fprintf(stderr, "SHA-256 verification failed. Aborting.\n");
         remove(tar_path); free(tar_path);
-        shyake_free_version_info(info);
-        return SHYAKE_ERR_CRYPTO;
+        cli_free_version_info(info);
+        return -1;
     }
 
     /* find current binary path */
@@ -304,8 +344,8 @@ shyake_self_update(shyake_ctx *ctx, const char *version_url,
     if (self_path[0] == '\0') {
         fprintf(stderr, "Cannot determine shyake binary path.\n");
         remove(tar_path); free(tar_path);
-        shyake_free_version_info(info);
-        return SHYAKE_ERR;
+        cli_free_version_info(info);
+        return -1;
     }
 
     /* archive layout: <artifact>/shyake */
@@ -320,13 +360,13 @@ shyake_self_update(shyake_ctx *ctx, const char *version_url,
     snprintf(installed_ver, sizeof(installed_ver), "%s", target);
 
     remove(tar_path); free(tar_path);
-    shyake_free_version_info(info);
+    cli_free_version_info(info);
 
     if (ext_ret != 0) {
         fprintf(stderr, "Installation failed.\n");
-        return SHYAKE_ERR;
+        return -1;
     }
 
     printf("Successfully updated to %s.\n", installed_ver);
-    return SHYAKE_OK;
+    return 0;
 }

@@ -39,8 +39,8 @@ Shyake 是一个后量子、端到端加密的异步邮件系统，配备一个 
 shyake/
 ├── client/                 # C 客户端
 │   ├── src/lib/            # 核心逻辑（网络、密码学、邮件、
-│   │                       #   账户、passphrase、更新）
-│   ├── src/cli/            # CLI 解析、显示、提示、配置
+│   │                       #   账户、passphrase）
+│   ├── src/cli/            # CLI 解析、显示、提示、配置、自更新
 │   ├── include/shyake.h    # 公开 API（不透明指针）
 │   ├── tests/              # 库测试程序
 │   └── Makefile
@@ -375,6 +375,8 @@ RUN 'shyake fingerprint <username>' to inspect and update trust.
 ---
 
 ### 8. 客户端库 ABI
+
+`libshyake` 是协议的实现本体，随附的 CLI 只是构建在其之上的一个参考客户端。库中只包含核心的、普适性的逻辑——密码学、线格式编码，以及本规范定义的收发操作。客户端特有的部分（参数解析、显示、交互提示、自更新）位于 `src/cli/`，不得迁入库中。第三方开发者可以仅基于 `libshyake` 构建完全兼容协议的客户端——无论是 TUI、GUI，还是通过 FFI 使用任何语言。
 
 核心库通过 `include/shyake.h` 暴露稳定的 C API。内部状态隐藏在不透明指针之后，以防止
 ABI 破坏：

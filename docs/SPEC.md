@@ -41,8 +41,9 @@ Key properties:
 shyake/
 ├── client/                 # C client
 │   ├── src/lib/            # core logic (network, crypto, mail,
-│   │                       #   account, passphrase, update)
-│   ├── src/cli/            # CLI parsing, display, prompt, config
+│   │                       #   account, passphrase)
+│   ├── src/cli/            # CLI parsing, display, prompt, config,
+│   │                       #   self-update
 │   ├── include/shyake.h    # public API (opaque pointer)
 │   ├── tests/              # library test programs
 │   └── Makefile
@@ -460,6 +461,15 @@ verifies the new fingerprint through a trusted channel.
 ---
 
 ### 8. Client Library ABI
+
+`libshyake` is the protocol implementation, and the bundled CLI is
+only a reference client built on top of it. The library contains
+exclusively core, universally applicable logic — cryptography,
+wire-format encoding, and the send/receive operations in this spec.
+Client-specific concerns (argument parsing, display, prompts,
+self-update) live in `src/cli/` and must not migrate into the
+library. Third-party developers can build fully protocol-compatible
+clients — TUI, GUI, or any language via FFI — on `libshyake` alone.
 
 The core library exposes a stable C API through `include/shyake.h`.
 Internal state is hidden behind an opaque pointer to prevent ABI
