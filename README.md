@@ -204,8 +204,8 @@ remove `~/.config/shyake/drafts/<id>.json`.
 > `crypt(1)`-based encryption feature, meant to provide basic
 > privacy and protection of sensitive data on multi-user
 > time-sharing systems (where `root` could read any file). It was
-> commonly used for diaries and private letters, as well as
-> unpublished code and design drafts. Nearly every modern Unix and
+> commonly used for diaries and private letters, password
+> management, as well as unpublished code and design drafts. Nearly every modern Unix and
 > Unix-like system has since dropped the feature (except NetBSD's
 > `ed`), as
 > its encryption scheme is long broken. Shyake `compose` is an
