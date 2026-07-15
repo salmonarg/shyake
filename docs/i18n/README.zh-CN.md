@@ -73,12 +73,14 @@ shyake whoami
 
 **check 命令**：
 
+`check` 命令可用于列出收件箱和已发送的邮件。
+
 ```sh
 shyake check inbox
 shyake check sent
 ```
 
-可以使用 `--csv` 和 `--json` 将输出格式化，以便于机器解析。也可以使用 `--no-header` 关闭列标题，或使用 `--count` 输出数量。
+可以使用 `--csv` 和 `--json` 将输出格式化，以便于机器解析。也可以使用 `--no-header` 关闭列标题，或使用 `--count` 以仅打印计数。
 
 查看某封邮件的邮件头：
 
@@ -112,15 +114,15 @@ shyake send -s "This is the subject" -t flat_white < body.txt
 shyake send -t flat_white < content.txt
 ```
 
-请注意，主题长度不得超过 128 字节。
+主题长度不得超过 128 字节。
 
-使用 `username@instance` 作为收件人，可将邮件发送给外部实例上的用户。
+对于外部实例上的用户，发件时需使用 `username@instance` 作为收件人。
 
 ```sh
 shyake send -s "Hello" -t flat_white@shyake.example.com < body.txt
 ```
 
-你也可以使用 heredoc，但请留意你的 shell 历史记录。
+你也可以使用 heredoc，但请务必小心 shell 历史记录泄漏。
 
 ```sh
 shyake send -s "This is the subject" -t flat_white <<EOF
@@ -128,19 +130,19 @@ Hello, this is the mail body.
 EOF
 ```
 
-Shyake 只传输文本。二进制数据在发送前必须先进行 base64 编码。
+Shyake 只能传输文本。二进制数据在发送前必须先进行 base64 编码。
 
 ```sh
-# 发送一张小图片
+# 发送弱影像
 base64 image.png | shyake send -t flat_white -s "image.png"
 
-# 发送一个小压缩包
+# 发送压缩后的磁带归档
 tar czf - ./source | base64 | shyake send -t flat_white -s "source.tar.gz"
 ```
 
 **compose 命令**：
 
-经典的 `ed` 和 `vi` 编辑器曾自带加密功能，如今只有 NetBSD 还保留着它，因为其底层的 `crypt()` 方案早已被攻破。`compose` 用后量子密码学让这一功能得以重获新生：它会用你的编辑器打开一个小模板，并将结果作为草稿存入 `~/.config/shyake/drafts/`，使用 ML-KEM-768 + ChaCha20-Poly1305 加密给你自己的密钥。
+`compose` 用于撰写邮件草稿，也可作个人日记等用途。该命令用你指定的编辑器（默认为 `ed`）打开一个简单的模板，并将结果作为草稿存入 `~/.config/shyake/drafts/`，使用 ML-KEM-768 + ChaCha20-Poly1305 加密给你自己的密钥。
 
 ```sh
 shyake compose
@@ -155,7 +157,7 @@ The mail body goes here.
 
 收件人、主题和正文在磁盘上全部加密。保存草稿不需要 passphrase（只用到你的公钥）。列出或阅读草稿则需要解锁你的私钥。
 
-将 `To:` 留空，草稿就成为一篇私密日记——`check drafts` 会将其显示为 `(diary)`：
+`To:` 栏可以留空，`check drafts` 会将其显示为 `(null)`：
 
 ```sh
 shyake compose            # 写一篇日记，To: 留空
@@ -172,6 +174,8 @@ shyake send --draft 3 -t flat_white
 ```
 
 编辑器默认为 `vim`，并以 `-n -i NONE` 启动，确保明文不会泄漏到交换文件中。可通过配置文件中的 `EDITOR` 键或 `$VISUAL`/`$EDITOR` 环境变量换用其他编辑器。草稿只是普通的本地文件，要删除某份草稿，直接移除 `~/.config/shyake/drafts/<id>.json` 即可。
+
+> 经典的 `ed` 编辑器（以及早期 `ex`/`vi`）曾自带一个基于 `crypt(1)` 的加密功能，用于满足多用户分时系统下基本的隐私防窥和敏感数据保护（因为 `root` 可以查看任意文件）。常用于个人日记，第三方服务的密码管理等。但如今几乎所有现代 Unix 和 Unix-like 操作系统的 ed 都已不再保留此功能（除了 NetBSD 的 `ed`），因为其加密方案早已被攻破。Shyake `compose` 是对 `ed -x` 的致敬。
 
 **fetch 命令**：
 
@@ -198,10 +202,10 @@ shyake fetch fQBjZnvJ56 -r > exported-mail.txt
 解码收到的 base64 编码二进制数据：
 
 ```sh
-# 解码收到的图片
+# 解码收到的影像
 shyake fetch fQBjZnvJ56 -r | base64 -d > image.png
 
-# 解码并解压收到的压缩包
+# 解码并解压收到的磁带归档
 mkdir -p ./output
 shyake fetch fQBjZnvJ56 -r | base64 -d | tar xzf - -C ./output
 ```
@@ -221,11 +225,13 @@ shyake save fQBjZnvJ56
 shyake read fQBjZnvJ56
 ```
 
-`read drafts <id>` 对本地草稿做同样的事——`read` 负责本地，`fetch` 负责远端。
+`read drafts <id>` 对本地草稿做同样的事。
 
 ```sh
 shyake read drafts 3
 ```
+
+简言之，`read` 负责本地，`fetch` 负责远端。
 
 **fingerprint 命令**：
 
@@ -241,7 +247,7 @@ shyake fingerprint
 shyake fingerprint flat_white
 ```
 
-如果通信对象轮换了密钥对，你可以更新他们的指纹。**警告：在运行更新命令之前，请务必通过额外的可信带外渠道（例如当面确认或通过其他平台）核实新指纹，以防身份冒充。**
+如果通信对象轮换了密钥对，你可以更新他们的指纹。**但在运行更新命令之前，请务必通过另外的可信带外渠道（例如当面确认或通过其他通信方式）核实新指纹，以防身份冒用。**
 
 ```sh
 shyake fingerprint flat_white --update
@@ -261,7 +267,7 @@ shyake burn fQBjZnvJ56
 
 ```sh
 shyake block flat_white
-shyake block https://bad.example.com
+shyake block bad.example.com
 shyake unblock flat_white
 ```
 
