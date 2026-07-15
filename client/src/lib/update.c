@@ -2,6 +2,7 @@
 #include <string.h>
 #include <strings.h>
 #include <stdio.h>
+#include <unistd.h>
 #include <curl/curl.h>
 #include <openssl/sha.h>
 #include "vendor/cJSON/cJSON.h"
