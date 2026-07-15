@@ -669,6 +669,53 @@ async function handleBlock(
 app.post('/api/block', (c) => handleBlock(c, false));
 app.delete('/api/block', (c) => handleBlock(c, true));
 
+/* blocklist: GET /api/block returns the caller's blocks */
+app.get('/api/block', async (c) => {
+    const username = c.req.header('X-Shyake-Username');
+    const timestamp = c.req.header('X-Shyake-Timestamp');
+    const signature = c.req.header('X-Shyake-Signature');
+    const pow = c.req.header('X-Shyake-Pow');
+
+    if (!username || !timestamp || !signature || !pow)
+        return c.json({ error: 'Missing auth headers' }, 401);
+
+    const isPowValid = await verifyPoW(pow, 20);
+    if (!isPowValid)
+        return c.json({ error: 'Invalid Proof of Work' }, 403);
+
+    const clientTs = parseInt(timestamp, 10);
+    const serverTs = Math.floor(Date.now() / 1000);
+    if (Math.abs(serverTs - clientTs) > 300)
+        return c.json({ error: 'Timestamp out of window' }, 403);
+
+    const user = await c.env.DB.prepare(
+        'SELECT sig_pubkey FROM users WHERE username = ?'
+    ).bind(username).first();
+    if (!user) return c.json({ error: 'User not found' }, 401);
+
+    await initWasm({ module_or_path: wasmModule });
+    try {
+        const message = `GET:/api/block:${username}:${timestamp}`;
+        const msgBytes = new TextEncoder().encode(message);
+        const sigUrl = toBase64Url(signature);
+        const pkUrl = toBase64Url(user.sig_pubkey as string);
+        if (!verifySignature(pkUrl, msgBytes, sigUrl))
+            return c.json({ error: 'Invalid signature' }, 401);
+    } catch (e) {
+        return c.json({ error: 'Signature verification failed' }, 401);
+    }
+
+    try {
+        const { results } = await c.env.DB.prepare(
+            'SELECT blocked, created_at FROM blocks WHERE blocker = ? ' +
+            'ORDER BY created_at DESC'
+        ).bind(username).all();
+        return c.json({ blocks: results }, 200);
+    } catch (e) {
+        return c.json({ error: 'Database error' }, 500);
+    }
+});
+
 app.post('/api/rotate', async (c) => {
     const username = c.req.header('X-Shyake-Username');
     const timestamp = c.req.header('X-Shyake-Timestamp');

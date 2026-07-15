@@ -129,6 +129,27 @@ shyake_err shyake_burn(shyake_ctx *ctx, const char *mail_id);
  */
 shyake_err shyake_block(shyake_ctx *ctx, const char *target, int unblock);
 
+/* --- Block list --- */
+
+typedef struct {
+    char *target;      /* blocked username or instance URL */
+    int64_t created;   /* UNIX timestamp seconds */
+} shyake_block_entry;
+
+typedef struct {
+    shyake_block_entry *entries;
+    int count;
+} shyake_block_list;
+
+void shyake_free_block_list(shyake_block_list *list);
+
+/*
+ * Fetch the caller's block list from the server.
+ * Returns allocated shyake_block_list* on success, NULL on failure.
+ * Caller must free with shyake_free_block_list().
+ */
+shyake_block_list* shyake_list_blocks(shyake_ctx *ctx);
+
 /* Rotate keypairs and upload to server */
 shyake_err shyake_rotate(shyake_ctx *ctx);
 

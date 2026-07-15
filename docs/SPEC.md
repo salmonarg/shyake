@@ -247,8 +247,8 @@ after the server confirms the rotation.
 
 #### 3.8 Local Encrypted Drafts
 
-`shyake compose` stores drafts (which double as a private diary) in
-`drafts/<id>.json` inside the config directory. Drafts never touch
+`shyake compose` stores drafts in `drafts/<id>.json` inside the
+config directory. Drafts never touch
 the server. Each draft uses the same hybrid scheme as mail (§3.2):
 a random 32-byte symmetric key encrypts each field with
 ChaCha20-Poly1305, and the key is ML-KEM-768-encapsulated to the
@@ -270,8 +270,7 @@ user's own KEM public key.
 
 Recipient, subject, and body are all encrypted at rest; only
 timestamps, size, and the id are plaintext. An empty
-`enc_recipient` / `enc_subject` string denotes an empty field — a
-draft without a recipient is a diary entry.
+`enc_recipient` / `enc_subject` string denotes an empty field.
 
 Because saving only needs the public key, `compose` requires no
 passphrase; listing, reading, editing, and sending a draft require
@@ -374,6 +373,7 @@ fields in the JSON body; all others use the `X-Shyake-*` headers.
 | `DELETE` | `/api/mail/:id` | Burn (delete) a mail |
 | `POST` | `/api/block` | Block a user or domain |
 | `DELETE` | `/api/block` | Unblock a user or domain |
+| `GET` | `/api/block` | List the caller's blocks |
 | `POST` | `/api/rotate` | Rotate public keys |
 | `DELETE` | `/api/destroy` | Destroy account |
 
@@ -499,7 +499,7 @@ registration, mail (`shyake_send`, `shyake_check`, `shyake_fetch`,
 (`shyake_save_mail`, `shyake_read_saved`, `shyake_check_saved_one`,
 `shyake_list_saved`), local drafts (`shyake_save_draft`,
 `shyake_list_drafts`, `shyake_read_draft`, `shyake_delete_draft`),
-account (`shyake_block`, `shyake_rotate`,
+account (`shyake_block`, `shyake_list_blocks`, `shyake_rotate`,
 `shyake_destroy`), fingerprints (`shyake_fingerprint`), standalone
 file encryption (`shyake_enc_file`, `shyake_dec_file`), and
 self-update (`shyake_get_latest_version`, `shyake_version_cmp`,
@@ -540,7 +540,7 @@ Key `config` fields:
 | `CHECK_COLUMNS` | `id,sender,subject,size,date` | `check` layout |
 | `NO_COLOR` | `0` | Set `1` to disable ANSI colors |
 | `DEFAULT_ACTION` | `0` | 0=man, 1=check inbox, 2=inbox --count |
-| `EDITOR` | — | Editor for `compose` (falls back to `$VISUAL`, `$EDITOR`, then `vim`) |
+| `EDITOR` | — | Editor for `compose` (falls back to `$VISUAL`, `$EDITOR`, then `ed`) |
 
 Recognized environment variables:
 
@@ -583,6 +583,7 @@ Recognized environment variables:
 | `burn <id>` | Delete a mail (sender or recipient) |
 | `block <target>` | Block a user or domain |
 | `unblock <target>` | Unblock a user or domain |
+| `blocklist` | List blocked users and domains |
 | `rotate` | Rotate key pairs (clears all own mail) |
 | `fingerprint [<user>] [--update]` | Compare key fingerprints |
 | `destroy` | Destroy account and local config |

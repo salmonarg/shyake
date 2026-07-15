@@ -208,7 +208,7 @@ passphrase 通过交互式提示输入（终端回显关闭），或通过`SHYAK
 
 #### 3.8 本地加密草稿
 
-`shyake compose` 将草稿（兼作私密日记）存储在配置目录下的 `drafts/<id>.json` 中。草稿永远不会接触服务器。每份草稿使用与邮件相同的混合方案（§3.2）：随机的 32 字节对称密钥用 ChaCha20-Poly1305 加密各个字段，该密钥再通过 ML-KEM-768 封装到用户自己的 KEM 公钥。
+`shyake compose` 将草稿存储在配置目录下的 `drafts/<id>.json` 中。草稿永远不会接触服务器。每份草稿使用与邮件相同的混合方案（§3.2）：随机的 32 字节对称密钥用 ChaCha20-Poly1305 加密各个字段，该密钥再通过 ML-KEM-768 封装到用户自己的 KEM 公钥。
 
 ```json
 {
@@ -224,7 +224,7 @@ passphrase 通过交互式提示输入（终端回显关闭），或通过`SHYAK
 }
 ```
 
-收件人、主题和正文在磁盘上全部加密；只有时间戳、大小和 id 是明文。空的 `enc_recipient` / `enc_subject` 字符串表示该字段为空——没有收件人的草稿就是一篇日记。
+收件人、主题和正文在磁盘上全部加密；只有时间戳、大小和 id 是明文。空的 `enc_recipient` / `enc_subject` 字符串表示该字段为空。
 
 由于保存只需要公钥，`compose` 不需要 passphrase；列出、阅读、编辑和发送草稿则需要解锁 KEM 私钥。草稿 id 是本地分配的小整数（现有最大 id + 1，用 `O_EXCL` 创建）。
 
@@ -310,6 +310,7 @@ HTTP 403 拒绝发送。
 | `DELETE` | `/api/mail/:id` | 焚毁（删除）邮件 |
 | `POST` | `/api/block` | 屏蔽用户或域名 |
 | `DELETE` | `/api/block` | 取消屏蔽用户或域名 |
+| `GET` | `/api/block` | 返回调用者的屏蔽列表 |
 | `POST` | `/api/rotate` | 轮换公钥 |
 | `DELETE` | `/api/destroy` | 销毁账户 |
 
@@ -404,7 +405,7 @@ void shyake_set_new_passphrase(shyake_ctx *ctx, const char *pp);
 | `SHYAKE_ERR_CRYPTO` | 密码学操作失败 |
 | `SHYAKE_ERR_NO_INSTANCE` | 未配置实例 URL |
 
-API 分组：上下文生命周期、密钥生成、PoW 铸造、注册、邮件（`shyake_send`、`shyake_check`、`shyake_fetch`、`shyake_check_one`、`shyake_burn`）、本地保存的邮件（`shyake_save_mail`、`shyake_read_saved`、`shyake_check_saved_one`、`shyake_list_saved`）、本地草稿（`shyake_save_draft`、`shyake_list_drafts`、`shyake_read_draft`、`shyake_delete_draft`）、账户（`shyake_block`、`shyake_rotate`、`shyake_destroy`）、指纹（`shyake_fingerprint`）、独立文件加密（`shyake_enc_file`、`shyake_dec_file`），以及自更新（`shyake_get_latest_version`、`shyake_version_cmp`、`shyake_self_update`）。
+API 分组：上下文生命周期、密钥生成、PoW 铸造、注册、邮件（`shyake_send`、`shyake_check`、`shyake_fetch`、`shyake_check_one`、`shyake_burn`）、本地保存的邮件（`shyake_save_mail`、`shyake_read_saved`、`shyake_check_saved_one`、`shyake_list_saved`）、本地草稿（`shyake_save_draft`、`shyake_list_drafts`、`shyake_read_draft`、`shyake_delete_draft`）、账户（`shyake_block`、`shyake_list_blocks`、`shyake_rotate`、`shyake_destroy`）、指纹（`shyake_fingerprint`）、独立文件加密（`shyake_enc_file`、`shyake_dec_file`），以及自更新（`shyake_get_latest_version`、`shyake_version_cmp`、`shyake_self_update`）。
 
 共享库（`libshyake.so` / `libshyake.dylib`）面向第三方 FFI
 使用者。CLI 二进制文件链接静态归档（`libshyake.a`）以实现单文件分发。
@@ -439,7 +440,7 @@ API 分组：上下文生命周期、密钥生成、PoW 铸造、注册、邮件
 | `CHECK_COLUMNS` | `id,sender,subject,size,date` | `check` 列布局 |
 | `NO_COLOR` | `0` | 设为 `1` 以禁用 ANSI 颜色 |
 | `DEFAULT_ACTION` | `0` | 0=man，1=check inbox，2=inbox --count |
-| `EDITOR` | — | `compose` 使用的编辑器（依次回退到 `$VISUAL`、`$EDITOR`、`vim`） |
+| `EDITOR` | — | `compose` 使用的编辑器（依次回退到 `$VISUAL`、`$EDITOR`、`ed`） |
 
 识别的环境变量：
 
@@ -482,6 +483,7 @@ API 分组：上下文生命周期、密钥生成、PoW 铸造、注册、邮件
 | `burn <id>` | 删除邮件（发件人或收件人均可） |
 | `block <target>` | 屏蔽用户或域名 |
 | `unblock <target>` | 取消屏蔽用户或域名 |
+| `blocklist` | 列出已屏蔽的用户和域名 |
 | `rotate` | 轮换密钥对（清除自己的全部邮件） |
 | `fingerprint [<user>] [--update]` | 比对密钥指纹 |
 | `destroy` | 销毁账户和本地配置 |

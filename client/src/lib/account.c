@@ -65,6 +65,90 @@ shyake_block(shyake_ctx *ctx, const char *target, int unblock)
     return ret;
 }
 
+void
+shyake_free_block_list(shyake_block_list *list)
+{
+    if (!list) return;
+    for (int i = 0; i < list->count; i++)
+        free(list->entries[i].target);
+    free(list->entries);
+    free(list);
+}
+
+shyake_block_list*
+shyake_list_blocks(shyake_ctx *ctx)
+{
+    if (!ctx) return NULL;
+    const char *username = ctx->username;
+    const char *endpoint = "/api/block";
+
+    char url[512];
+    snprintf(url, sizeof(url), "%s%s", ctx->instance_url, endpoint);
+
+    CURL *curl = curl_easy_init();
+    if (!curl) return NULL;
+
+    if (ctx->debug)
+        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+
+    struct curl_slist *headers = create_signed_headers(
+        ctx, "GET", endpoint, username);
+    if (!headers) { curl_easy_cleanup(curl); return NULL; }
+
+    struct curl_response resp = { .data = malloc(1), .size = 0 };
+    resp.data[0] = '\0';
+
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_write_cb);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&resp);
+
+    CURLcode res = curl_easy_perform(curl);
+    shyake_block_list *result = NULL;
+
+    if (res == CURLE_OK) {
+        long http_code;
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+        if (http_code == 200) {
+            cJSON *json = cJSON_Parse(resp.data);
+            if (json) {
+                cJSON *arr = cJSON_GetObjectItem(json, "blocks");
+                if (cJSON_IsArray(arr)) {
+                    int count = cJSON_GetArraySize(arr);
+                    result = calloc(1, sizeof(shyake_block_list));
+                    result->count = count;
+                    result->entries = calloc(
+                        count, sizeof(shyake_block_entry));
+
+                    for (int i = 0; i < count; i++) {
+                        cJSON *item = cJSON_GetArrayItem(arr, i);
+                        cJSON *tgt = cJSON_GetObjectItem(item, "blocked");
+                        cJSON *ts  = cJSON_GetObjectItem(item,
+                                                         "created_at");
+                        shyake_block_entry *e = &result->entries[i];
+                        e->target  = strdup(cJSON_IsString(tgt)
+                                            ? tgt->valuestring : "");
+                        e->created = cJSON_IsNumber(ts)
+                                     ? (int64_t)ts->valuedouble : 0;
+                    }
+                }
+                cJSON_Delete(json);
+            }
+        } else {
+            fprintf(stderr, "Failed to list blocks (HTTP %ld): %s\n",
+                    http_code, resp.data);
+        }
+    } else {
+        fprintf(stderr, "Network error: %s\n",
+                curl_easy_strerror(res));
+    }
+
+    free(resp.data);
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+    return result;
+}
+
 shyake_err
 shyake_rotate(shyake_ctx *ctx)
 {

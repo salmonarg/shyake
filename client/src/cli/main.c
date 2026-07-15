@@ -292,7 +292,7 @@ update_config_user_and_instance(const char *config_dir,
     return 0;
 }
 
-/* editor resolution: config > $VISUAL > $EDITOR > vim */
+/* editor resolution: config > $VISUAL > $EDITOR > ed */
 static const char*
 resolve_editor(const app_config *cfg)
 {
@@ -302,7 +302,7 @@ resolve_editor(const app_config *cfg)
     if (e && e[0]) return e;
     e = getenv("EDITOR");
     if (e && e[0]) return e;
-    return "vim";
+    return "ed";
 }
 
 /* run editor on path; vim gets swap/viminfo disabled */
@@ -453,6 +453,7 @@ int main(int argc, char *argv[])
             printf("  burn          Burn a piece of mail\n");
             printf("  block         Block a user or instance\n");
             printf("  unblock       Unblock a user or instance\n");
+            printf("  blocklist     List blocked users and instances\n");
             printf("  rotate        Rotate key pairs\n");
             printf("  fingerprint   Show or update fingerprint\n");
             printf("  whoami        Show current identity\n");
@@ -579,14 +580,13 @@ int main(int argc, char *argv[])
                        "(ML-KEM-768 +\n");
                 printf("    ChaCha20-Poly1305): saving needs no "
                        "passphrase, reading does.\n");
-                printf("    Leave 'To:' empty to keep a private diary "
-                       "entry.\n");
+                printf("    The 'To:' field may be left empty.\n");
                 printf("    'shyake compose <id>' edits an existing "
                        "draft.\n\n");
                 printf("    Editor: EDITOR in config, else "
-                       "$VISUAL/$EDITOR, else vim.\n");
-                printf("    vim runs with -n -i NONE so no plaintext "
-                       "touches swap files.\n\n");
+                       "$VISUAL/$EDITOR, else ed.\n");
+                printf("    vim/nvim run with -n -i NONE so no "
+                       "plaintext touches swap files.\n\n");
                 printf("    Use 'shyake check drafts' to list drafts.\n");
                 printf("    Use 'shyake send --draft <id>' to send "
                        "one.\n");
@@ -643,6 +643,16 @@ int main(int argc, char *argv[])
                 printf("    shyake unblock <target>\n\n");
                 printf("    <target> can be a username or an instance "
                        "URL.\n\n");
+                printf("Options:\n");
+                printf("    --debug         "
+                       "Output verbose curl logs to stderr\n");
+            } else if (strcmp(subcmd, "blocklist") == 0) {
+                printf("shyake blocklist - List blocked users and "
+                       "instances\n\n");
+                printf("Usage:\n");
+                printf("    shyake blocklist\n\n");
+                printf("    Prints every target you have blocked, "
+                       "newest first.\n\n");
                 printf("Options:\n");
                 printf("    --debug         "
                        "Output verbose curl logs to stderr\n");
@@ -1390,7 +1400,7 @@ int main(int argc, char *argv[])
                         shyake_mail_entry  *me = &mlist.entries[i];
                         me->mail_id   = se->mail_id;
                         me->party     = se->recipient[0]
-                                        ? se->recipient : "(diary)";
+                                        ? se->recipient : "(null)";
                         me->subject   = se->subject;
                         me->size      = se->size;
                         me->timestamp = se->timestamp;
@@ -1748,6 +1758,55 @@ int main(int argc, char *argv[])
         else
             fprintf(stderr, "Error: Operation failed.\n");
         return ret == SHYAKE_OK ? EXIT_SUCCESS : EXIT_FAILURE;
+    }
+
+    if (strcmp(cmd, "blocklist") == 0) {
+        const char *inst = app_cfg->instance;
+        const char *user = app_cfg->username;
+
+        if (!inst || !user) {
+            fprintf(stderr,
+                    "Missing INSTANCE or USERNAME in config file.\n");
+            free_app_config(app_cfg);
+            free(config_dir);
+            return EXIT_FAILURE;
+        }
+        shyake_config cfg = {
+            .config_dir = config_dir,
+            .instance_url = inst,
+            .username = user,
+            .plain = global_plain,
+            .debug = global_debug,
+            .no_color = global_no_color || app_cfg->no_color
+        };
+        shyake_ctx *ctx = shyake_init_ctx(&cfg);
+        if (prompt_passphrase(ctx, config_dir) != 0) {
+            shyake_free_ctx(ctx);
+            free_app_config(app_cfg);
+            free(config_dir);
+            return EXIT_FAILURE;
+        }
+        shyake_block_list *list = shyake_list_blocks(ctx);
+        shyake_free_ctx(ctx);
+        int ok = list != NULL;
+        if (!list) {
+            fprintf(stderr, "Error: Failed to fetch block list.\n");
+        } else if (list->count == 0) {
+            printf("Block list is empty.\n");
+        } else {
+            for (int i = 0; i < list->count; i++) {
+                char tbuf[64];
+                cli_format_timestamp(list->entries[i].created,
+                                     app_cfg->tz_hours,
+                                     app_cfg->time_format, NULL,
+                                     tbuf, sizeof(tbuf));
+                printf("%s  %s\n", tbuf, list->entries[i].target);
+            }
+        }
+        shyake_free_block_list(list);
+        free_app_config(app_cfg);
+        free(config_dir);
+        return ok ? EXIT_SUCCESS : EXIT_FAILURE;
     }
 
     if (strcmp(cmd, "rotate") == 0) {

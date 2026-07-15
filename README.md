@@ -58,7 +58,7 @@ shyake register -u salmon -i https://shyake.eee.coffee
 (leave it empty for no passphrase). Commands that use your keys will
 prompt for this passphrase.
 
-Configuration is stored at `~/.config/shyake/`.
+The config directory defaults to `~/.config/shyake/`.
 
 You can create multiple profiles by specifying a directory at init:
 
@@ -79,6 +79,8 @@ Run `shyake man` for a list of all commands, and `shyake man <command>`
 for detailed usage of each command.
 
 **Check command**:
+
+The `check` command lists your inbox and sent mail.
 
 ```sh
 shyake check inbox
@@ -144,21 +146,19 @@ Shyake transmits text only. Binary data must be base64-encoded before
 sending.
 
 ```sh
-# send a small image
+# send a poor image
 base64 image.png | shyake send -t flat_white -s "image.png"
 
-# send a small archive
+# send a small tape archive
 tar czf - ./source | base64 | shyake send -t flat_white -s "source.tar.gz"
 ```
 
 **Compose command**:
 
-The classic `ed` and `vi` editors once shipped with built-in
-encryption. Today only NetBSD keeps it, since the underlying
-`crypt()` scheme is long broken. `compose` revives that spirit with
-post-quantum cryptography: it opens your editor on a small template
-and stores the result as a draft under `~/.config/shyake/drafts/`,
-encrypted to your own key with ML-KEM-768 + ChaCha20-Poly1305.
+`compose` writes mail drafts, and doubles as a personal diary. It
+opens your editor (default: `ed`) on a simple template and stores
+the result as a draft under `~/.config/shyake/drafts/`, encrypted to
+your own key with ML-KEM-768 + ChaCha20-Poly1305.
 
 ```sh
 shyake compose
@@ -175,11 +175,11 @@ Recipient, subject, and body are all encrypted at rest. Saving a
 draft needs no passphrase (only your public key is used); listing or
 reading drafts requires unlocking your secret key.
 
-Leave `To:` empty and the draft becomes a private diary entry —
-`check drafts` shows it as `(diary)`:
+The `To:` field may be left empty — `check drafts` shows such a
+draft as `(null)`:
 
 ```sh
-shyake compose            # write a diary entry, leave To: empty
+shyake compose            # leave To: empty
 shyake check drafts       # list entries
 shyake read drafts 3      # read entry 3
 shyake compose 3          # continue writing entry 3
@@ -194,11 +194,22 @@ shyake send --draft 3
 shyake send --draft 3 -t flat_white
 ```
 
-The editor defaults to `vim`, invoked with `-n -i NONE` so no
-plaintext leaks into swap files. Set the `EDITOR` key in the config
+The editor defaults to `ed`. Set the `EDITOR` key in the config
 file, or the `$VISUAL`/`$EDITOR` environment variables, to use
-another editor. Drafts are plain local files; to delete one, just
+another editor; `vim` and `nvim` are invoked with `-n -i NONE` so no
+plaintext leaks into swap files. Drafts are plain local files; to delete one, just
 remove `~/.config/shyake/drafts/<id>.json`.
+
+> The classic `ed` editor (and the early `ex`/`vi`) shipped with a
+> `crypt(1)`-based encryption feature, meant to provide basic
+> privacy and protection of sensitive data on multi-user
+> time-sharing systems (where `root` could read any file). It was
+> commonly used for diaries and private letters, as well as
+> unpublished code and design drafts. Nearly every modern Unix and
+> Unix-like system has since dropped the feature (except NetBSD's
+> `ed`), as
+> its encryption scheme is long broken. Shyake `compose` is an
+> homage to `ed -x`.
 
 **Fetch command**:
 
@@ -251,12 +262,14 @@ shyake save fQBjZnvJ56
 shyake read fQBjZnvJ56
 ```
 
-`read drafts <id>` does the same for a local draft; `read` handles
-everything local, while `fetch` handles the remote side.
+`read drafts <id>` does the same for a local draft.
 
 ```sh
 shyake read drafts 3
 ```
+
+In short, `read` handles everything local, while `fetch` handles the
+remote side.
 
 **Fingerprint command**:
 
@@ -296,8 +309,14 @@ or an instance URL.
 
 ```sh
 shyake block flat_white
-shyake block https://bad.example.com
+shyake block bad.example.com
 shyake unblock flat_white
+```
+
+Use `blocklist` to review your current blocks:
+
+```sh
+shyake blocklist
 ```
 
 **Update command**:

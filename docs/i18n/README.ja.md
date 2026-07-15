@@ -6,7 +6,7 @@
 
 ### 概要
 
-Shyake は**耐量子暗号**（ポスト量子暗号）を用いた**エンドツーエンド暗号化メールシステム**であり、検閲や監視に対抗するための分散型コミュニケーション手段として設計されています。
+Shyake は**耐量子暗号**（ポスト量子暗号）を用いた**エンドツーエンド暗号化メールシステム**であり、検閲や監視に対抗するための分散型通信手段として設計されています。
 
 サーバーは Cloudflare Workers 上で動作するため、誰でも無料で自分のインスタンスをホストできます。Cloudflare グローバルネットワークの代わりに、自分のハードウェア上でサーバーをセルフホストすることも可能です。
 
@@ -52,7 +52,7 @@ shyake register -u salmon -i https://shyake.eee.coffee
 
 `init` では、秘密鍵を保護するパスフレーズの設定を求められます（空のままにするとパスフレーズなしになります）。鍵を使用するコマンドの実行時に、このパスフレーズの入力が求められます。
 
-設定は `~/.config/shyake/` に保存されます。
+設定ファイルのディレクトリは、デフォルトでは `~/.config/shyake/` です。
 
 初期化時にディレクトリを指定することで、複数のプロファイルを作成できます：
 
@@ -71,6 +71,8 @@ shyake whoami
 `shyake man` で全コマンドの一覧を、`shyake man <command>` で各コマンドの詳細な使い方を確認できます。
 
 **check コマンド**：
+
+`check` コマンドで受信箱と送信済みメールを一覧表示できます。
 
 ```sh
 shyake check inbox
@@ -132,7 +134,7 @@ Shyake が送信できるのはテキストのみです。バイナリデータ�
 base64 エンコードする必要があります。
 
 ```sh
-# 小さな画像を送る
+# 貧しい画像を送る
 base64 image.png | shyake send -t flat_white -s "image.png"
 
 # 小さなアーカイブを送る
@@ -141,7 +143,7 @@ tar czf - ./source | base64 | shyake send -t flat_white -s "source.tar.gz"
 
 **compose コマンド**：
 
-かつての `ed` や `vi` エディタには暗号化機能が組み込まれていました。現在それを残しているのは NetBSD だけです——基盤となる `crypt()` 方式はとうに破られているためです。`compose` はその精神をポスト量子暗号で蘇らせます。エディタで小さなテンプレートを開き、結果を ML-KEM-768 + ChaCha20-Poly1305 で自分自身の鍵に暗号化して `~/.config/shyake/drafts/` に下書きとして保存します。
+`compose` はメール草稿の作成用コマンドで、個人的な日記などの用途にも使えます。指定したエディタ（デフォルトは `ed`）でシンプルなテンプレートを開き、結果を ML-KEM-768 + ChaCha20-Poly1305 で自分自身の鍵に暗号化して `~/.config/shyake/drafts/` に下書きとして保存します。
 
 ```sh
 shyake compose
@@ -156,10 +158,10 @@ The mail body goes here.
 
 宛先・件名・本文はすべて暗号化された状態でディスクに置かれます。下書きの保存にパスフレーズは不要です（公開鍵のみを使用）。一覧表示や閲覧には秘密鍵のアンロックが必要です。
 
-`To:` を空欄にすると、その下書きは私的な日記になります。`check drafts` では `(diary)` と表示されます：
+`To:` は空欄のままでもかまいません。`check drafts` では `(null)` と表示されます：
 
 ```sh
-shyake compose            # 日記を書く（To: は空欄のまま）
+shyake compose            # To: は空欄のまま
 shyake check drafts       # エントリの一覧
 shyake read drafts 3      # エントリ 3 を読む
 shyake compose 3          # エントリ 3 の続きを書く
@@ -172,7 +174,9 @@ shyake send --draft 3
 shyake send --draft 3 -t flat_white
 ```
 
-エディタのデフォルトは `vim` で、平文がスワップファイルに漏れないよう `-n -i NONE` 付きで起動されます。設定ファイルの `EDITOR` キー、または環境変数 `$VISUAL`/`$EDITOR` で別のエディタを指定できます。下書きはただのローカルファイルなので、削除したい場合は `~/.config/shyake/drafts/<id>.json` を直接削除してください。
+エディタのデフォルトは `ed` です。設定ファイルの `EDITOR` キー、または環境変数 `$VISUAL`/`$EDITOR` で別のエディタを指定できます。`vim` または `nvim` を使う場合は、平文がスワップファイルに漏れないよう `-n -i NONE` 付きで起動されます。下書きはただのローカルファイルなので、削除したい場合は `~/.config/shyake/drafts/<id>.json` を直接削除してください。
+
+> かつての `ed` エディタ（および初期の `ex`/`vi`）には `crypt(1)` ベースの暗号化機能が組み込まれていました。マルチユーザーのタイムシェアリングシステムでは `root` が任意のファイルを読めたため、基本的なプライバシー保護や機密データの保護を目的とした機能で、日記や私信、未公開のコードや設計草稿などによく使われていました。しかし暗号方式がとうに破られているため、現在ではほぼすべての Unix および Unix 系 OS の ed からこの機能は取り除かれています（NetBSD の `ed` を除く）。Shyake の `compose` は `ed -x` へのオマージュです。
 
 **fetch コマンド**：
 
@@ -221,11 +225,13 @@ shyake save fQBjZnvJ56
 shyake read fQBjZnvJ56
 ```
 
-`read drafts <id>` はローカルの下書きに対して同じことを行います。`read` はローカル、`fetch` はリモートを担当します。
+`read drafts <id>` はローカルの下書きに対して同じことを行います。
 
 ```sh
 shyake read drafts 3
 ```
+
+要するに、`read` はローカル、`fetch` はリモートを担当します。
 
 **fingerprint コマンド**：
 
@@ -261,8 +267,14 @@ shyake burn fQBjZnvJ56
 
 ```sh
 shyake block flat_white
-shyake block https://bad.example.com
+shyake block bad.example.com
 shyake unblock flat_white
+```
+
+`blocklist` で現在のブロック一覧を確認できます：
+
+```sh
+shyake blocklist
 ```
 
 **update コマンド**：

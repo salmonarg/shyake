@@ -344,6 +344,11 @@ out=$(sh_run "$DIR_B" block "$USER_A" 2>&1)
 rc=$?; assert_exit "block exits 0" 0 "$rc" "$out"
 assert_contains "block: confirmation" "blocked" "$out"
 
+# blocklist shows the blocked target
+out=$(sh_run "$DIR_B" blocklist 2>&1)
+rc=$?; assert_exit "blocklist exits 0" 0 "$rc" "$out"
+assert_contains "blocklist: target listed" "$USER_A" "$out"
+
 # Sending from A to B should now fail (blocked)
 out_blocked=$(echo "blocked msg" | sh_run "$DIR_A" send -t "$USER_B" \
     -s "Should be blocked" 2>&1) || true
@@ -353,6 +358,11 @@ assert_not_contains "send to blocker: rejected" "sent" "$out_blocked"
 out=$(sh_run "$DIR_B" unblock "$USER_A" 2>&1)
 rc=$?; assert_exit "unblock exits 0" 0 "$rc" "$out"
 assert_contains "unblock: confirmation" "unblocked" "$out"
+
+# blocklist empty after unblock
+out=$(sh_run "$DIR_B" blocklist 2>&1)
+rc=$?; assert_exit "blocklist after unblock exits 0" 0 "$rc" "$out"
+assert_contains "blocklist: empty message" "empty" "$out"
 
 # Send should succeed again
 out_after=$(echo "unblocked msg" | sh_run "$DIR_A" send -t "$USER_B" \
@@ -727,13 +737,13 @@ assert_exit "read drafts <id> exits 0" 0 "$?"
 assert_contains "read drafts <id>: body decrypted" \
     "Draft body content" "$out"
 
-# 19e. diary draft (empty To) lists as (diary), refuses send without -t
+# 19e. diary draft (empty To) lists as (null), refuses send without -t
 out=$(EDITOR="$FAKE_ED_DIARY" VISUAL="$FAKE_ED_DIARY" \
     sh_run "$DIR_A" compose 2>&1)
 rc=$?; assert_exit "compose diary exits 0" 0 "$rc" "$out"
 DIARY_ID=$(echo "$out" | grep -oE 'Draft [0-9]+' | awk '{print $2}' | head -1)
 out=$(sh_run "$DIR_A" check drafts 2>&1)
-assert_contains "check drafts: diary marker" "(diary)" "$out"
+assert_contains "check drafts: diary marker" "(null)" "$out"
 set +e
 out=$(sh_run "$DIR_A" send --draft "$DIARY_ID" 2>&1)
 rc=$?

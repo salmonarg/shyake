@@ -212,7 +212,7 @@ GET:/api/mail?type=inbox:salmon:1749513600
 
 #### 3.8 ローカル暗号化下書き
 
-`shyake compose` は下書き（私的な日記としても使える）を設定ディレクトリ内の `drafts/<id>.json` に保存する。下書きがサーバーに触れることはない。各下書きはメールと同じハイブリッド方式（§3.2）を使用する：ランダムな 32 バイトの対称鍵が各フィールドを ChaCha20-Poly1305 で暗号化し、その鍵はユーザー自身の KEM 公開鍵に ML-KEM-768 でカプセル化される。
+`shyake compose` は下書きを設定ディレクトリ内の `drafts/<id>.json` に保存する。下書きがサーバーに触れることはない。各下書きはメールと同じハイブリッド方式（§3.2）を使用する：ランダムな 32 バイトの対称鍵が各フィールドを ChaCha20-Poly1305 で暗号化し、その鍵はユーザー自身の KEM 公開鍵に ML-KEM-768 でカプセル化される。
 
 ```json
 {
@@ -228,7 +228,7 @@ GET:/api/mail?type=inbox:salmon:1749513600
 }
 ```
 
-宛先・件名・本文はすべて暗号化された状態で保存される。平文なのはタイムスタンプ、サイズ、id だけである。空の `enc_recipient` / `enc_subject` 文字列は空フィールドを表す——宛先のない下書きは日記のエントリである。
+宛先・件名・本文はすべて暗号化された状態で保存される。平文なのはタイムスタンプ、サイズ、id だけである。空の `enc_recipient` / `enc_subject` 文字列は空フィールドを表す。
 
 保存には公開鍵しか必要ないため、`compose` はパスフレーズ不要である。一覧表示・閲覧・編集・送信には KEM 秘密鍵のアンロックが必要である。下書き id はローカルで割り当てられる小さな整数である（既存の最大 id + 1、`O_EXCL` で作成）。
 
@@ -318,6 +318,7 @@ ML-DSA-65 署名（§3.3）を検証する。`POST /api/register` と
 | `DELETE` | `/api/mail/:id` | メールを焼却（削除） |
 | `POST` | `/api/block` | ユーザーまたはドメインをブロック |
 | `DELETE` | `/api/block` | ユーザーまたはドメインのブロックを解除 |
+| `GET` | `/api/block` | 呼び出し元のブロック一覧を返す |
 | `POST` | `/api/rotate` | 公開鍵をローテーション |
 | `DELETE` | `/api/destroy` | アカウントを抹消 |
 
@@ -415,7 +416,7 @@ void shyake_set_new_passphrase(shyake_ctx *ctx, const char *pp);
 
 API グループ：コンテキストのライフサイクル、鍵生成、PoW 生成、登録、メール（`shyake_send`、`shyake_check`、`shyake_fetch`、
 `shyake_check_one`、`shyake_burn`）、ローカル保存メール（`shyake_save_mail`、`shyake_read_saved`、
-`shyake_check_saved_one`、`shyake_list_saved`）、ローカル下書き（`shyake_save_draft`、`shyake_list_drafts`、`shyake_read_draft`、`shyake_delete_draft`）、アカウント（`shyake_block`、`shyake_rotate`、`shyake_destroy`）、フィンガープリント（`shyake_fingerprint`）、単体ファイル暗号化（`shyake_enc_file`、`shyake_dec_file`）、自己更新（`shyake_get_latest_version`、`shyake_version_cmp`、
+`shyake_check_saved_one`、`shyake_list_saved`）、ローカル下書き（`shyake_save_draft`、`shyake_list_drafts`、`shyake_read_draft`、`shyake_delete_draft`）、アカウント（`shyake_block`、`shyake_list_blocks`、`shyake_rotate`、`shyake_destroy`）、フィンガープリント（`shyake_fingerprint`）、単体ファイル暗号化（`shyake_enc_file`、`shyake_dec_file`）、自己更新（`shyake_get_latest_version`、`shyake_version_cmp`、
 `shyake_self_update`）。
 
 共有ライブラリ（`libshyake.so` / `libshyake.dylib`）はサードパーティの FFI 利用者向けである。CLI バイナリは単一ファイル配布のため、静的アーカイブ（`libshyake.a`）にリンクされる。
@@ -451,7 +452,7 @@ API グループ：コンテキストのライフサイクル、鍵生成、PoW 
 | `CHECK_COLUMNS` | `id,sender,subject,size,date` | `check` のレイアウト |
 | `NO_COLOR` | `0` | `1` で ANSI カラーを無効化 |
 | `DEFAULT_ACTION` | `0` | 0=man、1=check inbox、2=inbox --count |
-| `EDITOR` | — | `compose` 用エディタ（`$VISUAL`、`$EDITOR`、`vim` の順にフォールバック） |
+| `EDITOR` | — | `compose` 用エディタ（`$VISUAL`、`$EDITOR`、`ed` の順にフォールバック） |
 
 認識される環境変数：
 
@@ -494,6 +495,7 @@ API グループ：コンテキストのライフサイクル、鍵生成、PoW 
 | `burn <id>` | メールを削除（送信者・受信者どちらでも可） |
 | `block <target>` | ユーザーまたはドメインをブロック |
 | `unblock <target>` | ユーザーまたはドメインのブロックを解除 |
+| `blocklist` | ブロック中のユーザーとドメインを一覧表示 |
 | `rotate` | 鍵ペアをローテーション（自分の全メールを消去） |
 | `fingerprint [<user>] [--update]` | 鍵フィンガープリントを比較 |
 | `destroy` | アカウントとローカル設定を抹消 |

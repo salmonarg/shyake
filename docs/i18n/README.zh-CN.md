@@ -52,7 +52,7 @@ shyake register -u salmon -i https://shyake.eee.coffee
 
 `init` 会要求你设置一个用于保护私钥的 passphrase，留空则不设置 passphrase。执行需要使用到密钥的命令时会提示输入该 passphrase。
 
-配置文件存储在 `~/.config/shyake/`。
+配置文件目录默认为 `~/.config/shyake/`。
 
 你可以在初始化时指定目录来创建多个 profile：
 
@@ -136,7 +136,7 @@ Shyake 只能传输文本。二进制数据在发送前必须先进行 base64 �
 # 发送弱影像
 base64 image.png | shyake send -t flat_white -s "image.png"
 
-# 发送压缩后的磁带归档
+# 发送小型磁带归档
 tar czf - ./source | base64 | shyake send -t flat_white -s "source.tar.gz"
 ```
 
@@ -160,7 +160,7 @@ The mail body goes here.
 `To:` 栏可以留空，`check drafts` 会将其显示为 `(null)`：
 
 ```sh
-shyake compose            # 写一篇日记，To: 留空
+shyake compose            # To: 留空
 shyake check drafts       # 列出所有条目
 shyake read drafts 3      # 阅读第 3 条
 shyake compose 3          # 继续编辑第 3 条
@@ -173,9 +173,9 @@ shyake send --draft 3
 shyake send --draft 3 -t flat_white
 ```
 
-编辑器默认为 `vim`，并以 `-n -i NONE` 启动，确保明文不会泄漏到交换文件中。可通过配置文件中的 `EDITOR` 键或 `$VISUAL`/`$EDITOR` 环境变量换用其他编辑器。草稿只是普通的本地文件，要删除某份草稿，直接移除 `~/.config/shyake/drafts/<id>.json` 即可。
+编辑器默认为 `ed`。可通过配置文件中的 `EDITOR` 键或 `$VISUAL`/`$EDITOR` 环境变量换用其他编辑器；使用 `vim` 或 `nvim` 时会以 `-n -i NONE` 启动，确保明文不会泄漏到交换文件中。草稿只是普通的本地文件，要删除某份草稿，直接移除 `~/.config/shyake/drafts/<id>.json` 即可。
 
-> 经典的 `ed` 编辑器（以及早期 `ex`/`vi`）曾自带一个基于 `crypt(1)` 的加密功能，用于满足多用户分时系统下基本的隐私防窥和敏感数据保护（因为 `root` 可以查看任意文件）。常用于个人日记，第三方服务的密码管理等。但如今几乎所有现代 Unix 和 Unix-like 操作系统的 ed 都已不再保留此功能（除了 NetBSD 的 `ed`），因为其加密方案早已被攻破。Shyake `compose` 是对 `ed -x` 的致敬。
+> 经典的 `ed` 编辑器（以及早期 `ex`/`vi`）曾自带一个基于 `crypt(1)` 的加密功能，用于满足多用户分时系统下基本的隐私防窥和敏感数据保护（因为 `root` 可以查看任意文件）。常用于日记与私人信件，以及未公开的代码和设计稿等。但如今几乎所有现代 Unix 和 Unix-like 操作系统的 ed 都已不再保留此功能（除了 NetBSD 的 `ed`），因为其加密方案早已被攻破。Shyake `compose` 是对 `ed -x` 的致敬。
 
 **fetch 命令**：
 
@@ -269,6 +269,12 @@ shyake burn fQBjZnvJ56
 shyake block flat_white
 shyake block bad.example.com
 shyake unblock flat_white
+```
+
+使用 `blocklist` 查看当前的屏蔽列表：
+
+```sh
+shyake blocklist
 ```
 
 **update 命令**：
