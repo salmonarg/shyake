@@ -272,8 +272,10 @@ parse_draft_json(shyake_ctx *ctx, const char *config_dir,
     shyake_selfdec *sd = shyake_selfdec_new(ctx);
     if (!sd) {
         const char *e = shyake_last_error(ctx);
-        fprintf(stderr, "Error: %s\n",
-                (e && e[0]) ? e : "Cannot unlock secret key.");
+        if (e && e[0])
+            fprintf(stderr, "%s\n", e);
+        else
+            fprintf(stderr, "Error: Cannot unlock secret key.\n");
         cJSON_Delete(json);
         return NULL;
     }
@@ -357,8 +359,10 @@ cli_list_drafts(shyake_ctx *ctx, const char *config_dir,
     shyake_selfdec *sd = shyake_selfdec_new(ctx);
     if (!sd) {
         const char *e = shyake_last_error(ctx);
-        fprintf(stderr, "Error: %s\n",
-                (e && e[0]) ? e : "Cannot unlock secret key.");
+        if (e && e[0])
+            fprintf(stderr, "%s\n", e);
+        else
+            fprintf(stderr, "Error: Cannot unlock secret key.\n");
         closedir(d);
         free(list);
         return NULL;

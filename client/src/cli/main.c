@@ -34,12 +34,15 @@ build_version_url(const char *instance)
     return url;
 }
 
-/* print lib failure detail, or a generic fallback */
+/* print lib failure detail as-is, or "Error: <fallback>" */
 static void
 print_lib_error(shyake_ctx *ctx, const char *fallback)
 {
     const char *e = shyake_last_error(ctx);
-    fprintf(stderr, "Error: %s\n", (e && e[0]) ? e : fallback);
+    if (e && e[0])
+        fprintf(stderr, "%s\n", e);
+    else
+        fprintf(stderr, "Error: %s\n", fallback);
 }
 
 
@@ -902,13 +905,15 @@ int main(int argc, char *argv[])
             printf("Successfully registered.\n");
             update_config_user_and_instance(config_dir, username, inst);
         } else if (ret == SHYAKE_ERR_NETWORK) {
-            fprintf(stderr, "\nError: Network failure during "
-                    "registration.\n");
+            fprintf(stderr, "\n");
+            print_lib_error(ctx, "Network failure during "
+                            "registration.");
         } else if (ret == SHYAKE_ERR_NO_INSTANCE) {
             fprintf(stderr, "\nError: Instance URL not configured.\n");
         } else {
-            fprintf(stderr, "\nError: Registration failed "
-                    "(server rejected).\n");
+            fprintf(stderr, "\n");
+            print_lib_error(ctx, "Registration failed "
+                            "(server rejected).");
         }
 
         shyake_free_ctx(ctx);
@@ -1015,12 +1020,14 @@ int main(int argc, char *argv[])
                     fprintf(stderr,
                             "\n\nFATAL: Recipient no longer exists.\n");
                 } else if (ret == SHYAKE_ERR_NETWORK) {
-                    fprintf(stderr, "\nError: Network failure.\n");
+                    fprintf(stderr, "\n");
+                    print_lib_error(ctx, "Network failure.");
                 } else if (ret == SHYAKE_ERR_CRYPTO) {
-                    fprintf(stderr,
-                            "\nError: Cryptographic operation failed.\n");
+                    fprintf(stderr, "\n");
+                    print_lib_error(ctx, "Cryptographic operation failed.");
                 } else {
-                    fprintf(stderr, "\nError: Send failed.\n");
+                    fprintf(stderr, "\n");
+                    print_lib_error(ctx, "Send failed.");
                 }
             }
 
@@ -1159,11 +1166,14 @@ int main(int argc, char *argv[])
         } else if (ret == SHYAKE_ERR_GONE) {
             fprintf(stderr, "\n\nFATAL: Recipient no longer exists.\n");
         } else if (ret == SHYAKE_ERR_NETWORK) {
-            fprintf(stderr, "\nError: Network failure.\n");
+            fprintf(stderr, "\n");
+            print_lib_error(ctx, "Network failure.");
         } else if (ret == SHYAKE_ERR_CRYPTO) {
-            fprintf(stderr, "\nError: Cryptographic operation failed.\n");
+            fprintf(stderr, "\n");
+            print_lib_error(ctx, "Cryptographic operation failed.");
         } else {
-            fprintf(stderr, "\nError: Send failed.\n");
+            fprintf(stderr, "\n");
+            print_lib_error(ctx, "Send failed.");
         }
 
         shyake_free_ctx(ctx);
@@ -1860,19 +1870,22 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Rotating keys for %s... ", user);
         fflush(stderr);
         shyake_err ret = shyake_rotate(ctx);
-        shyake_free_ctx(ctx);
-        free_app_config(app_cfg);
-        free(config_dir);
         if (ret == SHYAKE_OK) {
             fprintf(stderr, "done.\n");
             printf("Keys successfully rotated.\n");
         } else if (ret == SHYAKE_ERR_NETWORK) {
-            fprintf(stderr, "\nError: Network failure.\n");
+            fprintf(stderr, "\n");
+            print_lib_error(ctx, "Network failure.");
         } else if (ret == SHYAKE_ERR_CRYPTO) {
-            fprintf(stderr, "\nError: Key generation failed.\n");
+            fprintf(stderr, "\n");
+            print_lib_error(ctx, "Key generation failed.");
         } else {
-            fprintf(stderr, "\nError: Rotation failed.\n");
+            fprintf(stderr, "\n");
+            print_lib_error(ctx, "Rotation failed.");
         }
+        shyake_free_ctx(ctx);
+        free_app_config(app_cfg);
+        free(config_dir);
         return ret == SHYAKE_OK ? EXIT_SUCCESS : EXIT_FAILURE;
     }
 
@@ -1993,9 +2006,6 @@ int main(int argc, char *argv[])
         }
         shyake_err ret = shyake_destroy(ctx);
 
-        shyake_free_ctx(ctx);
-        free_app_config(app_cfg);
-
         if (ret == SHYAKE_OK) {
             char cmd_buf[512];
             snprintf(cmd_buf, sizeof(cmd_buf), "rm -rf %s/*", config_dir);
@@ -2003,10 +2013,13 @@ int main(int argc, char *argv[])
             printf("Account destroyed. "
                    "Local configuration and keys deleted.\n");
         } else if (ret == SHYAKE_ERR_NETWORK) {
-            fprintf(stderr, "Error: Network failure.\n");
+            print_lib_error(ctx, "Network failure.");
         } else {
-            fprintf(stderr, "Error: Destroy failed.\n");
+            print_lib_error(ctx, "Destroy failed.");
         }
+
+        shyake_free_ctx(ctx);
+        free_app_config(app_cfg);
 
         free(config_dir);
         return ret == SHYAKE_OK ? EXIT_SUCCESS : EXIT_FAILURE;
