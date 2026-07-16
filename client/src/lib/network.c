@@ -34,7 +34,7 @@ create_signed_headers(shyake_ctx *ctx, const char *method,
     char path[512];
     size_t ssk_len;
     snprintf(path, sizeof(path), "%s/sig_sk.bin", ctx->config_dir);
-    uint8_t *ssk = load_sk_decrypted(path, ctx->passphrase, &ssk_len);
+    uint8_t *ssk = load_sk_decrypted(ctx, path, &ssk_len);
     if (!ssk)
         return NULL;
 
@@ -122,8 +122,8 @@ fetch_recipient_pubkey(shyake_ctx *ctx, const char *recipient)
         }
         return NULL;
     } else if (res != CURLE_OK) {
-        fprintf(stderr, "Network error: %s\n",
-                curl_easy_strerror(res));
+        set_error(ctx, "Network error: %s",
+                  curl_easy_strerror(res));
     }
 
     free(resp.data);

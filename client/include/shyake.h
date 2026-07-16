@@ -44,6 +44,14 @@ typedef enum {
     SHYAKE_ERR_NO_INSTANCE = -9, /* instance URL not configured */
 } shyake_err;
 
+/*
+ * Human-readable detail of the last failure on this context, or ""
+ * if none. The library never prints; on error it records the detail
+ * here and returns an error code (or NULL) — the client decides how
+ * to present it. Valid until the next library call on the same ctx.
+ */
+const char* shyake_last_error(shyake_ctx *ctx);
+
 /* Generate local ML-KEM and ML-DSA keypairs */
 int shyake_generate_keys(shyake_ctx *ctx);
 
@@ -275,12 +283,15 @@ char* shyake_unseal_b64(const uint8_t sym_key[32], const char *b64);
  * Encrypt a file using own or recipient's KEM public key.
  * recipient: NULL to use own key; otherwise fetches recipient pubkey.
  * out_path: NULL to derive from in_path (appends ".enc").
+ * out_used_path: if non-NULL, receives the allocated path actually
+ *                written (caller must free()).
  * Returns SHYAKE_OK on success.
  */
 shyake_err shyake_enc_file(shyake_ctx *ctx,
                             const char *in_path,
                             const char *out_path,
-                            const char *recipient);
+                            const char *recipient,
+                            char **out_used_path);
 
 /*
  * Decrypt a file using own KEM secret key.

@@ -34,6 +34,15 @@ build_version_url(const char *instance)
     return url;
 }
 
+/* print lib failure detail, or a generic fallback */
+static void
+print_lib_error(shyake_ctx *ctx, const char *fallback)
+{
+    const char *e = shyake_last_error(ctx);
+    fprintf(stderr, "Error: %s\n", (e && e[0]) ? e : fallback);
+}
+
+
 int cmd_init(const char *config_dir);
 
 char *get_config_dir(void);
@@ -1483,6 +1492,7 @@ int main(int argc, char *argv[])
                                            app_cfg->time_format_recent);
                     shyake_free_mail_detail(d);
                 } else {
+                    print_lib_error(ctx, "Failed to read saved mail.");
                     ret = -1;
                 }
             } else {
@@ -1570,6 +1580,7 @@ int main(int argc, char *argv[])
                 cli_render_mail_list(list, &ro);
                 shyake_free_mail_list(list);
             } else {
+                print_lib_error(ctx, "Failed to check mail.");
                 ret = -1;
             }
         } else {
@@ -1582,6 +1593,7 @@ int main(int argc, char *argv[])
                                        app_cfg->time_format_recent);
                 shyake_free_mail_detail(d);
             } else {
+                print_lib_error(ctx, "Failed to check mail.");
                 ret = -1;
             }
         }
@@ -1657,6 +1669,7 @@ int main(int argc, char *argv[])
                                    app_cfg->time_format_recent);
             shyake_free_mail_detail(d);
         } else {
+            print_lib_error(ctx, "Failed to fetch mail.");
             ret = -1;
         }
 
@@ -1701,19 +1714,19 @@ int main(int argc, char *argv[])
             return EXIT_FAILURE;
         }
         shyake_err ret = shyake_burn(ctx, mail_id);
-        shyake_free_ctx(ctx);
-        free_app_config(app_cfg);
-        free(config_dir);
         if (ret == SHYAKE_OK)
             printf("Mail burned.\n");
         else if (ret == SHYAKE_ERR_NOT_FOUND)
-            fprintf(stderr, "Error: Mail not found.\n");
+            print_lib_error(ctx, "Mail not found.");
         else if (ret == SHYAKE_ERR_FORBIDDEN)
-            fprintf(stderr, "Error: Permission denied.\n");
+            print_lib_error(ctx, "Permission denied.");
         else if (ret == SHYAKE_ERR_NETWORK)
-            fprintf(stderr, "Error: Network failure.\n");
+            print_lib_error(ctx, "Network failure.");
         else
-            fprintf(stderr, "Error: Burn failed.\n");
+            print_lib_error(ctx, "Burn failed.");
+        shyake_free_ctx(ctx);
+        free_app_config(app_cfg);
+        free(config_dir);
         return ret == SHYAKE_OK ? EXIT_SUCCESS : EXIT_FAILURE;
     }
 
@@ -1753,16 +1766,16 @@ int main(int argc, char *argv[])
             return EXIT_FAILURE;
         }
         shyake_err ret = shyake_block(ctx, target, is_unblock);
-        shyake_free_ctx(ctx);
-        free_app_config(app_cfg);
-        free(config_dir);
         if (ret == SHYAKE_OK)
             printf("%s %s.\n", target,
                    is_unblock ? "unblocked" : "blocked");
         else if (ret == SHYAKE_ERR_NETWORK)
-            fprintf(stderr, "Error: Network failure.\n");
+            print_lib_error(ctx, "Network failure.");
         else
-            fprintf(stderr, "Error: Operation failed.\n");
+            print_lib_error(ctx, "Operation failed.");
+        shyake_free_ctx(ctx);
+        free_app_config(app_cfg);
+        free(config_dir);
         return ret == SHYAKE_OK ? EXIT_SUCCESS : EXIT_FAILURE;
     }
 
@@ -1793,13 +1806,13 @@ int main(int argc, char *argv[])
             return EXIT_FAILURE;
         }
         shyake_block_list *list = shyake_list_blocks(ctx);
-        shyake_free_ctx(ctx);
         int ok = list != NULL;
-        if (!list) {
-            fprintf(stderr, "Error: Failed to fetch block list.\n");
-        } else if (list->count == 0) {
+        if (!list)
+            print_lib_error(ctx, "Failed to fetch block list.");
+        shyake_free_ctx(ctx);
+        if (list && list->count == 0) {
             printf("Block list is empty.\n");
-        } else {
+        } else if (list) {
             for (int i = 0; i < list->count; i++) {
                 char tbuf[64];
                 cli_format_timestamp(list->entries[i].created,
@@ -2033,17 +2046,17 @@ int main(int argc, char *argv[])
             return EXIT_FAILURE;
         }
         shyake_err ret = shyake_save_mail(ctx, mail_id);
-        shyake_free_ctx(ctx);
-        free_app_config(app_cfg);
-        free(config_dir);
         if (ret == SHYAKE_OK)
             printf("Mail saved.\n");
         else if (ret == SHYAKE_ERR_NOT_FOUND)
-            fprintf(stderr, "Error: Mail not found.\n");
+            print_lib_error(ctx, "Mail not found.");
         else if (ret == SHYAKE_ERR_NETWORK)
-            fprintf(stderr, "Error: Network failure.\n");
+            print_lib_error(ctx, "Network failure.");
         else
-            fprintf(stderr, "Error: Save failed.\n");
+            print_lib_error(ctx, "Save failed.");
+        shyake_free_ctx(ctx);
+        free_app_config(app_cfg);
+        free(config_dir);
         return ret == SHYAKE_OK ? EXIT_SUCCESS : EXIT_FAILURE;
     }
 
@@ -2150,6 +2163,7 @@ int main(int argc, char *argv[])
                                    app_cfg->time_format_recent);
             shyake_free_mail_detail(d);
         } else {
+            print_lib_error(ctx, "Failed to read saved mail.");
             ret = -1;
         }
         shyake_free_ctx(ctx);
@@ -2209,17 +2223,19 @@ int main(int argc, char *argv[])
             .no_color = global_no_color || app_cfg->no_color
         };
         shyake_ctx *ctx = shyake_init_ctx(&cfg);
+        char *used_path = NULL;
         shyake_err ret = shyake_enc_file(ctx, in_path, out_path,
-                                         recipient);
+                                         recipient, &used_path);
+        if (ret == SHYAKE_OK)
+            fprintf(stderr, "Encrypted: %s\n", used_path);
+        else if (ret == SHYAKE_ERR_NETWORK)
+            print_lib_error(ctx, "Failed to fetch recipient pubkey.");
+        else
+            print_lib_error(ctx, "Encryption failed.");
+        free(used_path);
         shyake_free_ctx(ctx);
         free_app_config(app_cfg);
         free(config_dir);
-        if (ret == SHYAKE_ERR_CRYPTO)
-            fprintf(stderr, "Error: Encryption failed.\n");
-        else if (ret == SHYAKE_ERR_NETWORK)
-            fprintf(stderr, "Error: Failed to fetch recipient pubkey.\n");
-        else if (ret != SHYAKE_OK)
-            fprintf(stderr, "Error: Encryption failed.\n");
         return ret == SHYAKE_OK ? EXIT_SUCCESS : EXIT_FAILURE;
     }
 
@@ -2267,11 +2283,15 @@ int main(int argc, char *argv[])
             return EXIT_FAILURE;
         }
         shyake_err ret = shyake_dec_file(ctx, in_path, out_path);
+        if (ret == SHYAKE_OK) {
+            if (out_path)
+                fprintf(stderr, "Decrypted: %s\n", out_path);
+        } else {
+            print_lib_error(ctx, "Decryption failed.");
+        }
         shyake_free_ctx(ctx);
         free_app_config(app_cfg);
         free(config_dir);
-        if (ret != SHYAKE_OK)
-            fprintf(stderr, "Error: Decryption failed.\n");
         return ret == SHYAKE_OK ? EXIT_SUCCESS : EXIT_FAILURE;
     }
 

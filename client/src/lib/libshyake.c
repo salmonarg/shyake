@@ -9,8 +9,30 @@
 #include <curl/curl.h>
 #include "vendor/cJSON/cJSON.h"
 
+#include <stdarg.h>
+
 #include "lib_internal.h"
 #include "shyake_crypto.h"
+
+/* ------------------------------------------------------------------ */
+/* Error reporting                                                    */
+/* ------------------------------------------------------------------ */
+
+void
+set_error(shyake_ctx *ctx, const char *fmt, ...)
+{
+    if (!ctx) return;
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(ctx->last_error, sizeof(ctx->last_error), fmt, ap);
+    va_end(ap);
+}
+
+const char*
+shyake_last_error(shyake_ctx *ctx)
+{
+    return ctx ? ctx->last_error : "";
+}
 
 /* ------------------------------------------------------------------ */
 /* File I/O helpers                                                   */
@@ -269,7 +291,7 @@ shyake_register(shyake_ctx *ctx, const char *username)
     snprintf(path, sizeof(path), "%s/sig_pk.bin", ctx->config_dir);
     uint8_t *spk = load_file(path, &spk_len);
     snprintf(path, sizeof(path), "%s/sig_sk.bin", ctx->config_dir);
-    uint8_t *ssk = load_sk_decrypted(path, ctx->passphrase, &ssk_len);
+    uint8_t *ssk = load_sk_decrypted(ctx, path, &ssk_len);
 
     if (!kpk || !spk || !ssk) {
         free(kpk); free(spk); free(ssk);

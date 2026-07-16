@@ -141,7 +141,7 @@ shyake_selfdec_new(shyake_ctx *ctx)
     snprintf(path, sizeof(path), "%s/kem_sk.bin", ctx->config_dir);
 
     shyake_selfdec *sd = calloc(1, sizeof(shyake_selfdec));
-    sd->ksk = load_sk_decrypted(path, ctx->passphrase, &sd->ksk_len);
+    sd->ksk = load_sk_decrypted(ctx, path, &sd->ksk_len);
     if (!sd->ksk) {
         free(sd);
         return NULL;

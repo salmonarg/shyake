@@ -17,7 +17,12 @@ struct shyake_ctx {
     int no_color;
     char passphrase[512];      /* current passphrase for loading encrypted sk */
     char new_passphrase[512];  /* new passphrase for saving sk (rotate only) */
+    char last_error[512];      /* detail of the last failure, "" if none */
 };
+
+/* libshyake.c (error reporting) */
+void set_error(shyake_ctx *ctx, const char *fmt, ...)
+    __attribute__((format(printf, 2, 3)));
 
 /* libcurl response buffer */
 struct curl_response {
@@ -43,7 +48,7 @@ uint8_t* load_file(const char *path, size_t *len);
 /* passphrase.c */
 int save_sk_encrypted(const char *path, const char *passphrase,
                       const uint8_t *sk, size_t sk_len);
-uint8_t* load_sk_decrypted(const char *path, const char *passphrase,
+uint8_t* load_sk_decrypted(shyake_ctx *ctx, const char *path,
                            size_t *out_len);
 char* base64_encode(const uint8_t *data, size_t len);
 uint8_t* base64_decode(const char *b64, size_t *out_len);

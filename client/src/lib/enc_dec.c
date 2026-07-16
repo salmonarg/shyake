@@ -45,14 +45,15 @@ shyake_err
 shyake_enc_file(shyake_ctx *ctx,
                 const char *in_path,
                 const char *out_path,
-                const char *recipient)
+                const char *recipient,
+                char **out_used_path)
 {
     if (!ctx || !in_path) return SHYAKE_ERR;
 
     /* load plaintext */
     FILE *in = fopen(in_path, "rb");
     if (!in) {
-        fprintf(stderr, "Cannot open input file: %s\n", in_path);
+        set_error(ctx, "Cannot open input file: %s", in_path);
         return SHYAKE_ERR;
     }
     fseek(in, 0, SEEK_END);
@@ -73,7 +74,7 @@ shyake_enc_file(shyake_ctx *ctx,
     if (recipient) {
         char *pk_b64 = fetch_recipient_pubkey(ctx, recipient);
         if (!pk_b64) {
-            fprintf(stderr, "Failed to fetch pubkey for %s.\n", recipient);
+            set_error(ctx, "Failed to fetch pubkey for %s.", recipient);
             free(pt);
             return SHYAKE_ERR_NETWORK;
         }
@@ -148,7 +149,7 @@ shyake_enc_file(shyake_ctx *ctx,
 
     FILE *out = fopen(dest, "wb");
     if (!out) {
-        fprintf(stderr, "Cannot open output file: %s\n", dest);
+        set_error(ctx, "Cannot open output file: %s", dest);
         free(ct); free(kem_ct); free(ss); OQS_KEM_free(kem);
         free(pt); free(kem_pk);
         return SHYAKE_ERR;
@@ -167,7 +168,8 @@ shyake_enc_file(shyake_ctx *ctx,
     free(ct); free(kem_ct); free(ss); OQS_KEM_free(kem);
     free(pt); free(kem_pk);
 
-    fprintf(stderr, "Encrypted: %s\n", dest);
+    if (out_used_path)
+        *out_used_path = strdup(dest);
     return SHYAKE_OK;
 }
 
@@ -180,7 +182,7 @@ shyake_dec_file(shyake_ctx *ctx,
 
     FILE *in = fopen(in_path, "rb");
     if (!in) {
-        fprintf(stderr, "Cannot open input file: %s\n", in_path);
+        set_error(ctx, "Cannot open input file: %s", in_path);
         return SHYAKE_ERR;
     }
 
@@ -206,7 +208,7 @@ shyake_dec_file(shyake_ctx *ctx,
     char ksk_path[512];
     size_t ksk_len;
     snprintf(ksk_path, sizeof(ksk_path), "%s/kem_sk.bin", ctx->config_dir);
-    uint8_t *ksk = load_sk_decrypted(ksk_path, ctx->passphrase, &ksk_len);
+    uint8_t *ksk = load_sk_decrypted(ctx, ksk_path, &ksk_len);
     if (!ksk) { free(kem_ct); free(ct); return SHYAKE_ERR_CRYPTO; }
 
     OQS_KEM *kem = OQS_KEM_new("ML-KEM-768");
@@ -218,7 +220,7 @@ shyake_dec_file(shyake_ctx *ctx,
     uint8_t *ss = malloc(kem->length_shared_secret);
     if (OQS_KEM_decaps(kem, ss, kem_ct, ksk) != OQS_SUCCESS) {
         free(ss); free(kem_ct); free(ct); free(ksk); OQS_KEM_free(kem);
-        fprintf(stderr, "Decryption failed: wrong key.\n");
+        set_error(ctx, "Decryption failed: wrong key.");
         return SHYAKE_ERR_CRYPTO;
     }
 
@@ -232,7 +234,7 @@ shyake_dec_file(shyake_ctx *ctx,
     if (chacha20_poly1305_decrypt(sym_key, nonce, ct, pt_len,
                                   NULL, 0, mac, pt) != 0) {
         free(pt); free(ct);
-        fprintf(stderr, "Decryption failed: authentication error.\n");
+        set_error(ctx, "Decryption failed: authentication error.");
         return SHYAKE_ERR_CRYPTO;
     }
     free(ct);
@@ -241,7 +243,7 @@ shyake_dec_file(shyake_ctx *ctx,
     if (out_path) {
         out = fopen(out_path, "wb");
         if (!out) {
-            fprintf(stderr, "Cannot open output file: %s\n", out_path);
+            set_error(ctx, "Cannot open output file: %s", out_path);
             free(pt);
             return SHYAKE_ERR;
         }
@@ -250,10 +252,8 @@ shyake_dec_file(shyake_ctx *ctx,
     }
 
     fwrite(pt, 1, pt_len, out);
-    if (out_path) {
+    if (out_path)
         fclose(out);
-        fprintf(stderr, "Decrypted: %s\n", out_path);
-    }
 
     free(pt);
     return SHYAKE_OK;
@@ -261,6 +261,6 @@ shyake_dec_file(shyake_ctx *ctx,
 bad_format:
     fclose(in);
     free(kem_ct);
-    fprintf(stderr, "Invalid or corrupted .enc file.\n");
+    set_error(ctx, "Invalid or corrupted .enc file.");
     return SHYAKE_ERR;
 }

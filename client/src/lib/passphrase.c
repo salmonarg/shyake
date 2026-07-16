@@ -131,11 +131,15 @@ save_sk_encrypted(const char *path, const char *passphrase,
 }
 
 uint8_t*
-load_sk_decrypted(const char *path, const char *passphrase, size_t *out_len)
+load_sk_decrypted(shyake_ctx *ctx, const char *path, size_t *out_len)
 {
+    const char *passphrase = ctx->passphrase;
     size_t file_len;
     uint8_t *data = load_file(path, &file_len);
-    if (!data) return NULL;
+    if (!data) {
+        set_error(ctx, "Cannot load key file: %s", path);
+        return NULL;
+    }
 
     /* No magic header → legacy raw binary, return as-is */
     if (file_len < SK_MAGIC_LEN ||
@@ -145,19 +149,19 @@ load_sk_decrypted(const char *path, const char *passphrase, size_t *out_len)
     }
 
     if (!passphrase || passphrase[0] == '\0') {
-        fprintf(stderr, "Key is encrypted; passphrase required.\n");
+        set_error(ctx, "Key is encrypted; passphrase required.");
         free(data);
         return NULL;
     }
 
     if (file_len < (size_t)(HEADER_LEN + POLY1305_MAC_SIZE)) {
-        fprintf(stderr, "Key file is corrupted.\n");
+        set_error(ctx, "Key file is corrupted.");
         free(data);
         return NULL;
     }
 
     if (data[4] != 0x01 || data[5] != 0x01) {
-        fprintf(stderr, "Unsupported key file format.\n");
+        set_error(ctx, "Unsupported key file format.");
         free(data);
         return NULL;
     }
@@ -194,7 +198,7 @@ load_sk_decrypted(const char *path, const char *passphrase, size_t *out_len)
 
     if (dec_ret != 0) {
         free(sk);
-        fprintf(stderr, "Incorrect passphrase.\n");
+        set_error(ctx, "Incorrect passphrase.");
         return NULL;
     }
 

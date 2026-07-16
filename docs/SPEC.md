@@ -487,8 +487,11 @@ void shyake_set_new_passphrase(shyake_ctx *ctx, const char *pp);
 ```
 
 Internal struct definitions live in `src/lib/lib_internal.h`, not
-exposed to callers. Semantic error codes are returned as a typed enum
-(`shyake_err`), with `SHYAKE_OK = 0` for backward compatibility:
+exposed to callers. The library never writes to stdout/stderr: on
+failure it records a human-readable detail retrievable via
+`shyake_last_error(ctx)` (valid until the next call on the same
+context) and returns a semantic error code. Error codes are a typed
+enum (`shyake_err`), with `SHYAKE_OK = 0` for backward compatibility:
 
 | Code | Meaning |
 |---|---|

@@ -90,7 +90,7 @@ shyake_send(shyake_ctx *ctx, const char *recipient,
     snprintf(path, sizeof(path), "%s/kem_pk.bin", ctx->config_dir);
     uint8_t *my_kpk = load_file(path, &my_kpk_len);
     snprintf(path, sizeof(path), "%s/sig_sk.bin", ctx->config_dir);
-    uint8_t *my_ssk = load_sk_decrypted(path, ctx->passphrase, &my_ssk_len);
+    uint8_t *my_ssk = load_sk_decrypted(ctx, path, &my_ssk_len);
 
     if (!my_kpk || !my_ssk) {
         free(recip_pk_b64); free(recip_pk);
@@ -290,7 +290,7 @@ shyake_check(shyake_ctx *ctx, const char *type)
                     size_t ksk_len;
                     snprintf(path, sizeof(path), "%s/kem_sk.bin",
                              ctx->config_dir);
-                    uint8_t *ksk = load_sk_decrypted(path, ctx->passphrase,
+                    uint8_t *ksk = load_sk_decrypted(ctx, path,
                                                      &ksk_len);
 
                     for (int i = 0; i < count; i++) {
@@ -338,12 +338,12 @@ shyake_check(shyake_ctx *ctx, const char *type)
                 cJSON_Delete(json);
             }
         } else {
-            fprintf(stderr, "Failed to check mail (HTTP %ld): %s\n",
-                    http_code, resp.data);
+            set_error(ctx, "Failed to check mail (HTTP %ld): %s",
+                      http_code, resp.data);
         }
     } else {
-        fprintf(stderr, "Network error: %s\n",
-                curl_easy_strerror(res));
+        set_error(ctx, "Network error: %s",
+                  curl_easy_strerror(res));
     }
 
     free(resp.data);
@@ -412,7 +412,7 @@ shyake_fetch(shyake_ctx *ctx, const char *mail_id)
                 size_t ksk_len;
                 snprintf(path, sizeof(path), "%s/kem_sk.bin",
                          ctx->config_dir);
-                uint8_t *ksk = load_sk_decrypted(path, ctx->passphrase,
+                uint8_t *ksk = load_sk_decrypted(ctx, path,
                                                  &ksk_len);
 
                 char *sub = NULL;
@@ -439,12 +439,12 @@ shyake_fetch(shyake_ctx *ctx, const char *mail_id)
                 cJSON_Delete(json);
             }
         } else {
-            fprintf(stderr, "Failed to fetch mail (HTTP %ld): %s\n",
-                    http_code, resp.data);
+            set_error(ctx, "Failed to fetch mail (HTTP %ld): %s",
+                      http_code, resp.data);
         }
     } else {
-        fprintf(stderr, "Network error: %s\n",
-                curl_easy_strerror(res));
+        set_error(ctx, "Network error: %s",
+                  curl_easy_strerror(res));
     }
 
     free(resp.data);
@@ -513,7 +513,7 @@ shyake_check_one(shyake_ctx *ctx, const char *mail_id)
                 size_t ksk_len;
                 snprintf(path, sizeof(path), "%s/kem_sk.bin",
                          ctx->config_dir);
-                uint8_t *ksk = load_sk_decrypted(path, ctx->passphrase,
+                uint8_t *ksk = load_sk_decrypted(ctx, path,
                                                  &ksk_len);
                 char *sub = NULL;
                 if (ksk) {
@@ -537,14 +537,14 @@ shyake_check_one(shyake_ctx *ctx, const char *mail_id)
                 cJSON_Delete(json);
             }
         } else if (http_code == 404) {
-            fprintf(stderr, "Mail not found.\n");
+            set_error(ctx, "Mail not found.");
         } else {
-            fprintf(stderr, "Failed (HTTP %ld): %s\n",
-                    http_code, resp.data);
+            set_error(ctx, "Failed (HTTP %ld): %s",
+                      http_code, resp.data);
         }
     } else {
-        fprintf(stderr, "Network error: %s\n",
-                curl_easy_strerror(res));
+        set_error(ctx, "Network error: %s",
+                  curl_easy_strerror(res));
     }
 
     free(resp.data);
@@ -649,7 +649,7 @@ shyake_save_mail(shyake_ctx *ctx, const char *mail_id)
     if (!ctx || !mail_id) return SHYAKE_ERR;
 
     if (ensure_saved_dir(ctx->config_dir) != 0) {
-        fprintf(stderr, "Failed to create saved directory.\n");
+        set_error(ctx, "Failed to create saved directory.");
         return SHYAKE_ERR;
     }
 
@@ -719,7 +719,7 @@ parse_saved_json(shyake_ctx *ctx, const char *mail_id, int decrypt_body)
 
     FILE *f = fopen(path, "r");
     if (!f) {
-        fprintf(stderr, "Saved mail not found: %s\n", mail_id);
+        set_error(ctx, "Saved mail not found: %s", mail_id);
         return NULL;
     }
     fseek(f, 0, SEEK_END);
@@ -751,7 +751,7 @@ parse_saved_json(shyake_ctx *ctx, const char *mail_id, int decrypt_body)
     size_t ksk_len;
     snprintf(ksk_path, sizeof(ksk_path), "%s/kem_sk.bin",
              ctx->config_dir);
-    uint8_t *ksk = load_sk_decrypted(ksk_path, ctx->passphrase, &ksk_len);
+    uint8_t *ksk = load_sk_decrypted(ctx, ksk_path, &ksk_len);
 
     char *sub = NULL, *bdy = NULL;
     if (ksk) {
@@ -823,7 +823,7 @@ shyake_list_saved(shyake_ctx *ctx)
     size_t ksk_len;
     snprintf(ksk_path, sizeof(ksk_path), "%s/kem_sk.bin",
              ctx->config_dir);
-    uint8_t *ksk = load_sk_decrypted(ksk_path, ctx->passphrase, &ksk_len);
+    uint8_t *ksk = load_sk_decrypted(ctx, ksk_path, &ksk_len);
 
     int idx = 0;
     while ((ent = readdir(d)) != NULL && idx < count) {

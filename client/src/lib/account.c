@@ -135,12 +135,12 @@ shyake_list_blocks(shyake_ctx *ctx)
                 cJSON_Delete(json);
             }
         } else {
-            fprintf(stderr, "Failed to list blocks (HTTP %ld): %s\n",
-                    http_code, resp.data);
+            set_error(ctx, "Failed to list blocks (HTTP %ld): %s",
+                      http_code, resp.data);
         }
     } else {
-        fprintf(stderr, "Network error: %s\n",
-                curl_easy_strerror(res));
+        set_error(ctx, "Network error: %s",
+                  curl_easy_strerror(res));
     }
 
     free(resp.data);

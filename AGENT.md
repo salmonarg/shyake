@@ -112,10 +112,10 @@ Architecture notes:
   specific to this particular CLI distribution belongs there:
   argument parsing, display, interactive prompts, self-update /
   install logic, and user-facing messages.
-- The library should not print user-facing output or invoke shell
-  commands; it returns `shyake_err` codes and data, and the client
-  decides how to present them. (Some legacy `fprintf(stderr, ...)`
-  calls remain in `src/lib/` — do not add more.)
+- The library never prints user-facing output or invokes shell
+  commands; it returns `shyake_err` codes and data. Failure detail
+  goes through `set_error()` and is read by the client via
+  `shyake_last_error(ctx)` — the client decides how to present it.
 - The CLI links against `libshyake.a` and talks to the library only
   through `include/shyake.h`.
 - Internal library headers are `lib_internal.h` / `internal.h`; do not

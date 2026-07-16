@@ -271,6 +271,9 @@ parse_draft_json(shyake_ctx *ctx, const char *config_dir,
     /* drafts are useless undecrypted: fail hard on key errors */
     shyake_selfdec *sd = shyake_selfdec_new(ctx);
     if (!sd) {
+        const char *e = shyake_last_error(ctx);
+        fprintf(stderr, "Error: %s\n",
+                (e && e[0]) ? e : "Cannot unlock secret key.");
         cJSON_Delete(json);
         return NULL;
     }
@@ -353,6 +356,9 @@ cli_list_drafts(shyake_ctx *ctx, const char *config_dir,
     /* all metadata is encrypted: no key, no listing */
     shyake_selfdec *sd = shyake_selfdec_new(ctx);
     if (!sd) {
+        const char *e = shyake_last_error(ctx);
+        fprintf(stderr, "Error: %s\n",
+                (e && e[0]) ? e : "Cannot unlock secret key.");
         closedir(d);
         free(list);
         return NULL;
