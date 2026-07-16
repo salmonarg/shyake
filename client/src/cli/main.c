@@ -9,6 +9,7 @@
 #include "display.h"
 #include "prompt.h"
 #include "update.h"
+#include "drafts.h"
 
 #ifndef SHYAKE_VERSION
 #define SHYAKE_VERSION "dev"
@@ -959,7 +960,8 @@ int main(int argc, char *argv[])
                 return EXIT_FAILURE;
             }
 
-            shyake_mail_detail *d = shyake_read_draft(ctx, draft_id);
+            shyake_mail_detail *d = cli_read_draft(ctx, config_dir,
+                app_cfg->username, draft_id);
             if (!d || !d->body) {
                 fprintf(stderr, "Error: Failed to read draft.\n");
                 shyake_free_mail_detail(d);
@@ -993,7 +995,7 @@ int main(int argc, char *argv[])
                 if (ret == SHYAKE_OK) {
                     fprintf(stderr, "done.\n");
                     printf("Your mail was sent.\n");
-                    if (shyake_delete_draft(ctx, draft_id) == SHYAKE_OK)
+                    if (cli_delete_draft(config_dir, draft_id) == SHYAKE_OK)
                         printf("Draft %s deleted.\n", draft_id);
                 } else if (ret == SHYAKE_ERR_KEY_MISMATCH) {
                     fprintf(stderr, "\n\nFATAL: Remote public key of "
@@ -1187,7 +1189,8 @@ int main(int argc, char *argv[])
                 free(config_dir);
                 return EXIT_FAILURE;
             }
-            shyake_mail_detail *d = shyake_read_draft(ctx, draft_id);
+            shyake_mail_detail *d = cli_read_draft(ctx, config_dir,
+                app_cfg->username, draft_id);
             if (!d || !d->body) {
                 fprintf(stderr, "Error: Failed to decrypt draft.\n");
                 shyake_free_mail_detail(d);
@@ -1297,8 +1300,8 @@ int main(int argc, char *argv[])
                     "sending will fail.\n");
 
         char *new_id = NULL;
-        shyake_err ret = shyake_save_draft(
-            ctx, to, subject, (const uint8_t*)body, strlen(body),
+        shyake_err ret = cli_save_draft(
+            ctx, config_dir, to, subject, (const uint8_t*)body, strlen(body),
             draft_id, &new_id);
         if (ret == SHYAKE_OK) {
             printf("Draft %s saved.\n", new_id ? new_id : draft_id);
@@ -1375,7 +1378,8 @@ int main(int argc, char *argv[])
 
             if (argc >= 4) {
                 /* check drafts <id> — header only, no body */
-                shyake_mail_detail *d = shyake_read_draft(ctx, argv[3]);
+                shyake_mail_detail *d = cli_read_draft(ctx, config_dir,
+                app_cfg->username, argv[3]);
                 if (d) {
                     cli_render_mail_header(d, cfg.no_color,
                                           app_cfg->tz_hours,
@@ -1387,7 +1391,8 @@ int main(int argc, char *argv[])
                 }
             } else {
                 /* check drafts — list all; NULL means key failure */
-                shyake_saved_list *slist = shyake_list_drafts(ctx);
+                shyake_saved_list *slist = cli_list_drafts(ctx, config_dir,
+                    app_cfg->username);
                 if (!slist) {
                     ret = -1;
                 } else if (slist->count > 0) {
@@ -2089,7 +2094,8 @@ int main(int argc, char *argv[])
                 return EXIT_FAILURE;
             }
             int dret = 0;
-            shyake_mail_detail *d = shyake_read_draft(dctx, draft_id);
+            shyake_mail_detail *d = cli_read_draft(dctx, config_dir,
+                app_cfg->username, draft_id);
             if (d) {
                 cli_render_mail_detail(d, raw, dcfg.no_color,
                                        dcfg.plain,

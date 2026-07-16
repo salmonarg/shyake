@@ -43,7 +43,7 @@ shyake/
 │   ├── src/lib/            # core logic (network, crypto, mail,
 │   │                       #   account, passphrase)
 │   ├── src/cli/            # CLI parsing, display, prompt, config,
-│   │                       #   self-update
+│   │                       #   drafts, self-update
 │   ├── include/shyake.h    # public API (opaque pointer)
 │   ├── tests/              # library test programs
 │   └── Makefile
@@ -507,13 +507,17 @@ API groups: context lifecycle, key generation, PoW minting,
 registration, mail (`shyake_send`, `shyake_check`, `shyake_fetch`,
 `shyake_check_one`, `shyake_burn`), local saved mail
 (`shyake_save_mail`, `shyake_read_saved`, `shyake_check_saved_one`,
-`shyake_list_saved`), local drafts (`shyake_save_draft`,
-`shyake_list_drafts`, `shyake_read_draft`, `shyake_delete_draft`),
-account (`shyake_block`, `shyake_list_blocks`, `shyake_rotate`,
-`shyake_destroy`), fingerprints (`shyake_fingerprint`), standalone
-file encryption (`shyake_enc_file`, `shyake_dec_file`), and
-self-update (`shyake_get_latest_version`, `shyake_version_cmp`,
-`shyake_self_update`).
+`shyake_list_saved`), account (`shyake_block`, `shyake_list_blocks`,
+`shyake_rotate`, `shyake_destroy`), fingerprints
+(`shyake_fingerprint`), self-encryption primitives
+(`shyake_selfenc_begin`, `shyake_selfdec_new`, `shyake_selfdec_key`,
+`shyake_selfdec_free`, `shyake_seal_b64`, `shyake_unseal_b64`), and
+standalone file encryption (`shyake_enc_file`, `shyake_dec_file`).
+
+Drafts and self-update are CLI-layer features (`src/cli/`), not part
+of the library API. The drafts on-disk format (§3.8) is built
+entirely on the public self-encryption primitives; other clients may
+reuse the format or store drafts their own way.
 
 The shared library (`libshyake.so` / `libshyake.dylib`) is intended
 for third-party FFI consumers. The CLI binary links against the

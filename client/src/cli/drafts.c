@@ -14,10 +14,11 @@
  *   "enc_body": "<b64>"
  * }
  *
- * Same hybrid scheme as sent mail: a random 32-byte symmetric key
- * encrypts each field with ChaCha20-Poly1305, and the key is
- * ML-KEM-768-encapsulated to the user's own kem_pk. Saving a draft
- * therefore needs no passphrase; reading one does.
+ * Same hybrid scheme as sent mail, via libshyake's public
+ * self-encryption primitives: a random 32-byte symmetric key seals
+ * each field, and the key is ML-KEM-768-encapsulated to the user's
+ * own kem_pk. Saving a draft therefore needs no passphrase; reading
+ * one does.
  */
 
 #include <stdlib.h>
@@ -29,8 +30,17 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <dirent.h>
-#include "vendor/cJSON/cJSON.h"
-#include "lib_internal.h"
+#include "cJSON.h"
+#include "drafts.h"
+
+/* zero a symmetric key after use */
+static void
+wipe_key(uint8_t key[32])
+{
+    volatile uint8_t *p = key;
+    for (int i = 0; i < 32; i++)
+        p[i] = 0;
+}
 
 /* ensure drafts/ directory exists */
 static int
@@ -79,14 +89,22 @@ max_draft_id(const char *config_dir)
     return max_id;
 }
 
-/* load own KEM secret key once for decryption */
-static uint8_t*
-load_own_ksk(shyake_ctx *ctx)
+/* read whole file into malloc'd NUL-terminated buffer */
+static char*
+read_text_file(const char *path)
 {
-    char path[512];
-    size_t len;
-    snprintf(path, sizeof(path), "%s/kem_sk.bin", ctx->config_dir);
-    return load_sk_decrypted(path, ctx->passphrase, &len);
+    FILE *f = fopen(path, "r");
+    if (!f) return NULL;
+    fseek(f, 0, SEEK_END);
+    long flen = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (flen < 0) { fclose(f); return NULL; }
+    char *raw = malloc(flen + 1);
+    if (!raw) { fclose(f); return NULL; }
+    size_t rd = fread(raw, 1, (size_t)flen, f);
+    raw[rd] = '\0';
+    fclose(f);
+    return raw;
 }
 
 /* decrypt optional field; "" maps to empty string */
@@ -95,30 +113,21 @@ decrypt_field(const uint8_t *sym, const char *enc)
 {
     if (!enc || enc[0] == '\0')
         return strdup("");
-    return decrypt_from_b64(sym, enc);
+    return shyake_unseal_b64(sym, enc);
 }
 
 shyake_err
-shyake_save_draft(shyake_ctx *ctx, const char *recipient,
-                  const char *subject, const uint8_t *body,
-                  size_t body_len, const char *draft_id,
-                  char **out_id)
+cli_save_draft(shyake_ctx *ctx, const char *config_dir,
+               const char *recipient, const char *subject,
+               const uint8_t *body, size_t body_len,
+               const char *draft_id, char **out_id)
 {
-    if (!ctx || !body || body_len == 0) return SHYAKE_ERR;
+    if (!ctx || !config_dir || !body || body_len == 0)
+        return SHYAKE_ERR;
 
-    if (ensure_drafts_dir(ctx->config_dir) != 0) {
+    if (ensure_drafts_dir(config_dir) != 0) {
         fprintf(stderr, "Failed to create drafts directory.\n");
         return SHYAKE_ERR;
-    }
-
-    /* load own KEM public key */
-    char path[512];
-    size_t kpk_len;
-    snprintf(path, sizeof(path), "%s/kem_pk.bin", ctx->config_dir);
-    uint8_t *kpk = load_file(path, &kpk_len);
-    if (!kpk) {
-        fprintf(stderr, "Failed to load kem_pk.bin. Run 'shyake init'.\n");
-        return SHYAKE_ERR_CRYPTO;
     }
 
     /* keep created time when overwriting an existing draft */
@@ -127,19 +136,10 @@ shyake_save_draft(shyake_ctx *ctx, const char *recipient,
     if (draft_id) {
         char old_path[640];
         snprintf(old_path, sizeof(old_path), "%s/drafts/%s.json",
-                 ctx->config_dir, draft_id);
-        FILE *f = fopen(old_path, "r");
-        if (!f) {
-            free(kpk);
+                 config_dir, draft_id);
+        char *raw = read_text_file(old_path);
+        if (!raw)
             return SHYAKE_ERR_NOT_FOUND;
-        }
-        fseek(f, 0, SEEK_END);
-        long flen = ftell(f);
-        fseek(f, 0, SEEK_SET);
-        char *raw = malloc(flen + 1);
-        fread(raw, 1, flen, f);
-        raw[flen] = '\0';
-        fclose(f);
         cJSON *old = cJSON_Parse(raw);
         free(raw);
         if (old) {
@@ -149,32 +149,27 @@ shyake_save_draft(shyake_ctx *ctx, const char *recipient,
         }
     }
 
-    /* generate symmetric key */
+    /* symmetric key encapsulated to own kem_pk */
     uint8_t sym_key[32];
-    size_t read_bytes = 0;
-    FILE *urandom = fopen("/dev/urandom", "rb");
-    if (urandom) {
-        read_bytes = fread(sym_key, 1, 32, urandom);
-        fclose(urandom);
-    }
-    if (read_bytes != 32) {
-        free(kpk);
+    char *enc_key = shyake_selfenc_begin(ctx, sym_key);
+    if (!enc_key) {
+        fprintf(stderr,
+                "Failed to load kem_pk.bin. Run 'shyake init'.\n");
         return SHYAKE_ERR_CRYPTO;
     }
 
     /* encrypt fields; empty ones stored as "" */
     char *enc_rec = NULL, *enc_sub = NULL, *enc_bdy = NULL;
     if (recipient && recipient[0])
-        enc_rec = encrypt_to_b64(sym_key, (const uint8_t*)recipient,
-                                 strlen(recipient));
+        enc_rec = shyake_seal_b64(sym_key, (const uint8_t*)recipient,
+                                  strlen(recipient));
     if (subject && subject[0])
-        enc_sub = encrypt_to_b64(sym_key, (const uint8_t*)subject,
-                                 strlen(subject));
-    enc_bdy = encrypt_to_b64(sym_key, body, body_len);
-    char *enc_key = kem_encapsulate_key(kpk, kpk_len, sym_key);
-    free(kpk);
+        enc_sub = shyake_seal_b64(sym_key, (const uint8_t*)subject,
+                                  strlen(subject));
+    enc_bdy = shyake_seal_b64(sym_key, body, body_len);
+    wipe_key(sym_key);
 
-    if (!enc_bdy || !enc_key ||
+    if (!enc_bdy ||
         (recipient && recipient[0] && !enc_rec) ||
         (subject && subject[0] && !enc_sub)) {
         free(enc_rec); free(enc_sub); free(enc_bdy); free(enc_key);
@@ -188,14 +183,14 @@ shyake_save_draft(shyake_ctx *ctx, const char *recipient,
     if (draft_id) {
         snprintf(id_buf, sizeof(id_buf), "%s", draft_id);
         snprintf(draft_path, sizeof(draft_path), "%s/drafts/%s.json",
-                 ctx->config_dir, draft_id);
+                 config_dir, draft_id);
         fd = open(draft_path, O_WRONLY | O_TRUNC, 0600);
     } else {
-        long id = max_draft_id(ctx->config_dir) + 1;
+        long id = max_draft_id(config_dir) + 1;
         for (int tries = 0; tries < 100; tries++, id++) {
             snprintf(id_buf, sizeof(id_buf), "%ld", id);
             snprintf(draft_path, sizeof(draft_path),
-                     "%s/drafts/%ld.json", ctx->config_dir, id);
+                     "%s/drafts/%ld.json", config_dir, id);
             fd = open(draft_path, O_WRONLY | O_CREAT | O_EXCL, 0600);
             if (fd >= 0 || errno != EEXIST) break;
         }
@@ -239,24 +234,19 @@ shyake_save_draft(shyake_ctx *ctx, const char *recipient,
 
 /* parse and decrypt a draft file */
 static shyake_mail_detail*
-parse_draft_json(shyake_ctx *ctx, const char *draft_id, int decrypt_body)
+parse_draft_json(shyake_ctx *ctx, const char *config_dir,
+                 const char *username, const char *draft_id,
+                 int decrypt_body)
 {
     char path[640];
     snprintf(path, sizeof(path), "%s/drafts/%s.json",
-             ctx->config_dir, draft_id);
+             config_dir, draft_id);
 
-    FILE *f = fopen(path, "r");
-    if (!f) {
+    char *raw = read_text_file(path);
+    if (!raw) {
         fprintf(stderr, "Draft not found: %s\n", draft_id);
         return NULL;
     }
-    fseek(f, 0, SEEK_END);
-    long flen = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    char *raw = malloc(flen + 1);
-    fread(raw, 1, flen, f);
-    raw[flen] = '\0';
-    fclose(f);
 
     cJSON *json = cJSON_Parse(raw);
     free(raw);
@@ -279,22 +269,24 @@ parse_draft_json(shyake_ctx *ctx, const char *draft_id, int decrypt_body)
     cJSON *jsub = cJSON_GetObjectItem(json, "enc_subject");
 
     /* drafts are useless undecrypted: fail hard on key errors */
-    uint8_t *ksk = load_own_ksk(ctx);
-    if (!ksk) {
+    shyake_selfdec *sd = shyake_selfdec_new(ctx);
+    if (!sd) {
         cJSON_Delete(json);
         return NULL;
     }
     char *rec = NULL, *sub = NULL, *bdy = NULL;
-    uint8_t *sym = kem_decapsulate_key(jkey->valuestring, ksk);
-    if (sym) {
+    uint8_t sym[32];
+    int have_sym =
+        shyake_selfdec_key(sd, jkey->valuestring, sym) == SHYAKE_OK;
+    if (have_sym) {
         rec = decrypt_field(sym, jrec ? jrec->valuestring : NULL);
         sub = decrypt_field(sym, jsub ? jsub->valuestring : NULL);
         if (decrypt_body)
-            bdy = decrypt_from_b64(sym, jbdy->valuestring);
-        free(sym);
+            bdy = shyake_unseal_b64(sym, jbdy->valuestring);
+        wipe_key(sym);
     }
-    free(ksk);
-    if (!sym || (decrypt_body && !bdy)) {
+    shyake_selfdec_free(sd);
+    if (!have_sym || (decrypt_body && !bdy)) {
         fprintf(stderr, "Failed to decrypt draft: %s\n", draft_id);
         free(rec); free(sub); free(bdy);
         cJSON_Delete(json);
@@ -304,7 +296,7 @@ parse_draft_json(shyake_ctx *ctx, const char *draft_id, int decrypt_body)
     shyake_mail_detail *result = calloc(1, sizeof(shyake_mail_detail));
     result->mail_id   = strdup(draft_id);
     result->sender    = strdup(
-        (ctx->username && ctx->username[0]) ? ctx->username : "(me)");
+        (username && username[0]) ? username : "(me)");
     result->recipient = rec;
     result->subject   = sub;
     result->body      = bdy;
@@ -317,10 +309,11 @@ parse_draft_json(shyake_ctx *ctx, const char *draft_id, int decrypt_body)
 }
 
 shyake_mail_detail*
-shyake_read_draft(shyake_ctx *ctx, const char *draft_id)
+cli_read_draft(shyake_ctx *ctx, const char *config_dir,
+               const char *username, const char *draft_id)
 {
-    if (!ctx || !draft_id) return NULL;
-    return parse_draft_json(ctx, draft_id, 1);
+    if (!ctx || !config_dir || !draft_id) return NULL;
+    return parse_draft_json(ctx, config_dir, username, draft_id, 1);
 }
 
 /* qsort helper: ascending numeric id */
@@ -333,12 +326,13 @@ draft_entry_cmp(const void *a, const void *b)
 }
 
 shyake_saved_list*
-shyake_list_drafts(shyake_ctx *ctx)
+cli_list_drafts(shyake_ctx *ctx, const char *config_dir,
+                const char *username)
 {
-    if (!ctx) return NULL;
+    if (!ctx || !config_dir) return NULL;
 
     char dir_path[512];
-    snprintf(dir_path, sizeof(dir_path), "%s/drafts", ctx->config_dir);
+    snprintf(dir_path, sizeof(dir_path), "%s/drafts", config_dir);
 
     /* missing directory just means no drafts yet */
     DIR *d = opendir(dir_path);
@@ -357,16 +351,15 @@ shyake_list_drafts(shyake_ctx *ctx)
     if (count == 0) { closedir(d); return list; }
 
     /* all metadata is encrypted: no key, no listing */
-    uint8_t *ksk = load_own_ksk(ctx);
-    if (!ksk) {
+    shyake_selfdec *sd = shyake_selfdec_new(ctx);
+    if (!sd) {
         closedir(d);
         free(list);
         return NULL;
     }
 
     list->entries = calloc(count, sizeof(shyake_saved_entry));
-    const char *self = (ctx->username && ctx->username[0])
-        ? ctx->username : "(me)";
+    const char *self = (username && username[0]) ? username : "(me)";
 
     int idx = 0;
     while ((ent = readdir(d)) != NULL && idx < count) {
@@ -376,15 +369,8 @@ shyake_list_drafts(shyake_ctx *ctx)
 
         char fpath[768];
         snprintf(fpath, sizeof(fpath), "%s/%s", dir_path, ent->d_name);
-        FILE *f = fopen(fpath, "r");
-        if (!f) continue;
-        fseek(f, 0, SEEK_END);
-        long flen = ftell(f);
-        fseek(f, 0, SEEK_SET);
-        char *raw = malloc(flen + 1);
-        fread(raw, 1, flen, f);
-        raw[flen] = '\0';
-        fclose(f);
+        char *raw = read_text_file(fpath);
+        if (!raw) continue;
 
         cJSON *json = cJSON_Parse(raw);
         free(raw);
@@ -402,11 +388,12 @@ shyake_list_drafts(shyake_ctx *ctx)
         }
 
         char *rec = NULL, *sub = NULL;
-        uint8_t *sym = kem_decapsulate_key(jkey->valuestring, ksk);
-        if (sym) {
+        uint8_t sym[32];
+        if (shyake_selfdec_key(sd, jkey->valuestring, sym)
+                == SHYAKE_OK) {
             rec = decrypt_field(sym, jrec ? jrec->valuestring : NULL);
             sub = decrypt_field(sym, jsub ? jsub->valuestring : NULL);
-            free(sym);
+            wipe_key(sym);
         }
 
         shyake_saved_entry *e = &list->entries[idx];
@@ -425,7 +412,7 @@ shyake_list_drafts(shyake_ctx *ctx)
     }
 
     list->count = idx;
-    free(ksk);
+    shyake_selfdec_free(sd);
     closedir(d);
 
     qsort(list->entries, list->count, sizeof(shyake_saved_entry),
@@ -434,13 +421,13 @@ shyake_list_drafts(shyake_ctx *ctx)
 }
 
 shyake_err
-shyake_delete_draft(shyake_ctx *ctx, const char *draft_id)
+cli_delete_draft(const char *config_dir, const char *draft_id)
 {
-    if (!ctx || !draft_id) return SHYAKE_ERR;
+    if (!config_dir || !draft_id) return SHYAKE_ERR;
 
     char path[640];
     snprintf(path, sizeof(path), "%s/drafts/%s.json",
-             ctx->config_dir, draft_id);
+             config_dir, draft_id);
     if (unlink(path) != 0)
         return errno == ENOENT ? SHYAKE_ERR_NOT_FOUND : SHYAKE_ERR;
     return SHYAKE_OK;

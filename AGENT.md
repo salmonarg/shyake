@@ -76,11 +76,12 @@ bash tests/e2e_test.sh      # from repo root: tests/e2e_test.sh
 ```
 shyake/
 ├── client/                 # C client
-│   ├── src/lib/            # core library (account, crypto, mail, drafts,
-│   │   │                   #   network, passphrase, known_hosts, enc_dec)
+│   ├── src/lib/            # core library (account, crypto, mail,
+│   │   │                   #   network, passphrase, known_hosts,
+│   │   │                   #   enc_dec)
 │   │   └── vendor/cJSON/   # vendored JSON parser
 │   ├── src/cli/            # CLI entry, init, display, prompts,
-│   │                       #   self-update
+│   │                       #   drafts, self-update
 │   ├── include/shyake.h    # public FFI API (opaque context pointer)
 │   ├── tests/              # unit tests + test account fixtures
 │   └── Makefile

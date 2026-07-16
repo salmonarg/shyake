@@ -38,7 +38,8 @@ shyake/
 ├── client/                 # C クライアント
 │   ├── src/lib/            # コアロジック（ネットワーク、暗号、
 │   │                       #   メール、アカウント、パスフレーズ）
-│   ├── src/cli/            # CLI 解析、表示、プロンプト、設定、自己更新
+│   ├── src/cli/            # CLI 解析、表示、プロンプト、設定、
+│   │                       #   下書き、自己更新
 │   ├── include/shyake.h    # 公開 API（不透明ポインタ）
 │   ├── tests/              # ライブラリテストプログラム
 │   └── Makefile
@@ -416,10 +417,9 @@ void shyake_set_new_passphrase(shyake_ctx *ctx, const char *pp);
 | `SHYAKE_ERR_CRYPTO` | 暗号操作の失敗 |
 | `SHYAKE_ERR_NO_INSTANCE` | インスタンス URL が未設定 |
 
-API グループ：コンテキストのライフサイクル、鍵生成、PoW 生成、登録、メール（`shyake_send`、`shyake_check`、`shyake_fetch`、
-`shyake_check_one`、`shyake_burn`）、ローカル保存メール（`shyake_save_mail`、`shyake_read_saved`、
-`shyake_check_saved_one`、`shyake_list_saved`）、ローカル下書き（`shyake_save_draft`、`shyake_list_drafts`、`shyake_read_draft`、`shyake_delete_draft`）、アカウント（`shyake_block`、`shyake_list_blocks`、`shyake_rotate`、`shyake_destroy`）、フィンガープリント（`shyake_fingerprint`）、単体ファイル暗号化（`shyake_enc_file`、`shyake_dec_file`）、自己更新（`shyake_get_latest_version`、`shyake_version_cmp`、
-`shyake_self_update`）。
+API グループ：コンテキストのライフサイクル、鍵生成、PoW 生成、登録、メール（`shyake_send`、`shyake_check`、`shyake_fetch`、`shyake_check_one`、`shyake_burn`）、ローカル保存メール（`shyake_save_mail`、`shyake_read_saved`、`shyake_check_saved_one`、`shyake_list_saved`）、アカウント（`shyake_block`、`shyake_list_blocks`、`shyake_rotate`、`shyake_destroy`）、フィンガープリント（`shyake_fingerprint`）、自己暗号化プリミティブ（`shyake_selfenc_begin`、`shyake_selfdec_new`、`shyake_selfdec_key`、`shyake_selfdec_free`、`shyake_seal_b64`、`shyake_unseal_b64`）、単体ファイル暗号化（`shyake_enc_file`、`shyake_dec_file`）。
+
+下書きと自己更新は CLI 層の機能（`src/cli/`）であり、ライブラリ API には含まれない。下書きのディスク上フォーマット（§3.8）は公開された自己暗号化プリミティブのみで構築されている。他のクライアントはこのフォーマットを再利用してもよいし、独自の方式で下書きを保存してもよい。
 
 共有ライブラリ（`libshyake.so` / `libshyake.dylib`）はサードパーティの FFI 利用者向けである。CLI バイナリは単一ファイル配布のため、静的アーカイブ（`libshyake.a`）にリンクされる。
 

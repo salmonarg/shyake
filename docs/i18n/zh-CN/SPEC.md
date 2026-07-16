@@ -40,7 +40,8 @@ shyake/
 ├── client/                 # C 客户端
 │   ├── src/lib/            # 核心逻辑（网络、密码学、邮件、
 │   │                       #   账户、passphrase）
-│   ├── src/cli/            # CLI 解析、显示、提示、配置、自更新
+│   ├── src/cli/            # CLI 解析、显示、提示、配置、
+│   │                       #   草稿、自更新
 │   ├── include/shyake.h    # 公开 API（不透明指针）
 │   ├── tests/              # 库测试程序
 │   └── Makefile
@@ -407,7 +408,9 @@ void shyake_set_new_passphrase(shyake_ctx *ctx, const char *pp);
 | `SHYAKE_ERR_CRYPTO` | 密码学操作失败 |
 | `SHYAKE_ERR_NO_INSTANCE` | 未配置实例 URL |
 
-API 分组：上下文生命周期、密钥生成、PoW 铸造、注册、邮件（`shyake_send`、`shyake_check`、`shyake_fetch`、`shyake_check_one`、`shyake_burn`）、本地保存的邮件（`shyake_save_mail`、`shyake_read_saved`、`shyake_check_saved_one`、`shyake_list_saved`）、本地草稿（`shyake_save_draft`、`shyake_list_drafts`、`shyake_read_draft`、`shyake_delete_draft`）、账户（`shyake_block`、`shyake_list_blocks`、`shyake_rotate`、`shyake_destroy`）、指纹（`shyake_fingerprint`）、独立文件加密（`shyake_enc_file`、`shyake_dec_file`），以及自更新（`shyake_get_latest_version`、`shyake_version_cmp`、`shyake_self_update`）。
+API 分组：上下文生命周期、密钥生成、PoW 铸造、注册、邮件（`shyake_send`、`shyake_check`、`shyake_fetch`、`shyake_check_one`、`shyake_burn`）、本地保存的邮件（`shyake_save_mail`、`shyake_read_saved`、`shyake_check_saved_one`、`shyake_list_saved`）、账户（`shyake_block`、`shyake_list_blocks`、`shyake_rotate`、`shyake_destroy`）、指纹（`shyake_fingerprint`）、自加密原语（`shyake_selfenc_begin`、`shyake_selfdec_new`、`shyake_selfdec_key`、`shyake_selfdec_free`、`shyake_seal_b64`、`shyake_unseal_b64`），以及独立文件加密（`shyake_enc_file`、`shyake_dec_file`）。
+
+草稿与自更新属于 CLI 层功能（`src/cli/`），不在库 API 之内。草稿的磁盘格式（§3.8）完全基于公开的自加密原语构建；其他客户端可以复用该格式，也可以用自己的方式存储草稿。
 
 共享库（`libshyake.so` / `libshyake.dylib`）面向第三方 FFI
 使用者。CLI 二进制文件链接静态归档（`libshyake.a`）以实现单文件分发。

@@ -98,6 +98,98 @@ kem_encapsulate_key(const uint8_t *kem_pk, size_t kem_pk_len,
     return b64;
 }
 
+/* --- public self-encryption primitives --- */
+
+char*
+shyake_selfenc_begin(shyake_ctx *ctx, uint8_t sym_key[32])
+{
+    if (!ctx || !sym_key) return NULL;
+
+    char path[512];
+    size_t kpk_len;
+    snprintf(path, sizeof(path), "%s/kem_pk.bin", ctx->config_dir);
+    uint8_t *kpk = load_file(path, &kpk_len);
+    if (!kpk) return NULL;
+
+    size_t read_bytes = 0;
+    FILE *urandom = fopen("/dev/urandom", "rb");
+    if (urandom) {
+        read_bytes = fread(sym_key, 1, 32, urandom);
+        fclose(urandom);
+    }
+    if (read_bytes != 32) {
+        free(kpk);
+        return NULL;
+    }
+
+    char *enc_key = kem_encapsulate_key(kpk, kpk_len, sym_key);
+    free(kpk);
+    return enc_key;
+}
+
+struct shyake_selfdec {
+    uint8_t *ksk;
+    size_t ksk_len;
+};
+
+shyake_selfdec*
+shyake_selfdec_new(shyake_ctx *ctx)
+{
+    if (!ctx) return NULL;
+
+    char path[512];
+    snprintf(path, sizeof(path), "%s/kem_sk.bin", ctx->config_dir);
+
+    shyake_selfdec *sd = calloc(1, sizeof(shyake_selfdec));
+    sd->ksk = load_sk_decrypted(path, ctx->passphrase, &sd->ksk_len);
+    if (!sd->ksk) {
+        free(sd);
+        return NULL;
+    }
+    return sd;
+}
+
+void
+shyake_selfdec_free(shyake_selfdec *sd)
+{
+    if (!sd) return;
+    if (sd->ksk) {
+        volatile uint8_t *p = sd->ksk;
+        for (size_t i = 0; i < sd->ksk_len; i++)
+            p[i] = 0;
+        free(sd->ksk);
+    }
+    free(sd);
+}
+
+shyake_err
+shyake_selfdec_key(shyake_selfdec *sd, const char *enc_key_b64,
+                   uint8_t sym_key[32])
+{
+    if (!sd || !enc_key_b64 || !sym_key) return SHYAKE_ERR;
+    uint8_t *sym = kem_decapsulate_key(enc_key_b64, sd->ksk);
+    if (!sym) return SHYAKE_ERR_CRYPTO;
+    memcpy(sym_key, sym, 32);
+    volatile uint8_t *p = sym;
+    for (int i = 0; i < 32; i++)
+        p[i] = 0;
+    free(sym);
+    return SHYAKE_OK;
+}
+
+char*
+shyake_seal_b64(const uint8_t sym_key[32], const uint8_t *pt,
+                size_t pt_len)
+{
+    return encrypt_to_b64(sym_key, pt, pt_len);
+}
+
+char*
+shyake_unseal_b64(const uint8_t sym_key[32], const char *b64)
+{
+    return decrypt_from_b64(sym_key, b64);
+}
+
 uint8_t*
 kem_decapsulate_key(const char *enc_key_b64, const uint8_t *my_sk)
 {
