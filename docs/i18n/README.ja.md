@@ -161,7 +161,7 @@ The mail body goes here.
 `To:` は空欄のままでもかまいません。`check drafts` では `(null)` と表示されます：
 
 ```sh
-shyake compose            # To: は空欄のまま
+shyake compose
 shyake check drafts       # エントリの一覧
 shyake read drafts 3      # エントリ 3 を読む
 shyake compose 3          # エントリ 3 の続きを書く

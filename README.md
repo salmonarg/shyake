@@ -179,7 +179,7 @@ The `To:` field may be left empty — `check drafts` shows such a
 draft as `(null)`:
 
 ```sh
-shyake compose            # leave To: empty
+shyake compose
 shyake check drafts       # list entries
 shyake read drafts 3      # read entry 3
 shyake compose 3          # continue writing entry 3

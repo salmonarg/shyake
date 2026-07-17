@@ -160,7 +160,7 @@ The mail body goes here.
 `To:` 栏可以留空，`check drafts` 会将其显示为 `(null)`：
 
 ```sh
-shyake compose            # To: 留空
+shyake compose
 shyake check drafts       # 列出所有条目
 shyake read drafts 3      # 阅读第 3 条
 shyake compose 3          # 继续编辑第 3 条
