@@ -45,6 +45,17 @@ print_lib_error(shyake_ctx *ctx, const char *fallback)
         fprintf(stderr, "Error: %s\n", fallback);
 }
 
+/* print drafts failure detail as-is, or "Error: <fallback>" */
+static void
+print_drafts_error(const char *fallback)
+{
+    const char *e = cli_drafts_last_error();
+    if (e && e[0])
+        fprintf(stderr, "%s\n", e);
+    else
+        fprintf(stderr, "Error: %s\n", fallback);
+}
+
 
 int cmd_init(const char *config_dir);
 
@@ -977,7 +988,7 @@ int main(int argc, char *argv[])
             shyake_mail_detail *d = cli_read_draft(ctx, config_dir,
                 app_cfg->username, draft_id);
             if (!d || !d->body) {
-                fprintf(stderr, "Error: Failed to read draft.\n");
+                print_drafts_error("Failed to read draft.");
                 shyake_free_mail_detail(d);
                 shyake_free_ctx(ctx);
                 free_app_config(app_cfg);
@@ -1211,7 +1222,7 @@ int main(int argc, char *argv[])
             shyake_mail_detail *d = cli_read_draft(ctx, config_dir,
                 app_cfg->username, draft_id);
             if (!d || !d->body) {
-                fprintf(stderr, "Error: Failed to decrypt draft.\n");
+                print_drafts_error("Failed to decrypt draft.");
                 shyake_free_mail_detail(d);
                 shyake_free_ctx(ctx);
                 free_app_config(app_cfg);
@@ -1325,7 +1336,7 @@ int main(int argc, char *argv[])
         if (ret == SHYAKE_OK) {
             printf("Draft %s saved.\n", new_id ? new_id : draft_id);
         } else {
-            fprintf(stderr, "Error: Failed to save draft.\n");
+            print_drafts_error("Failed to save draft.");
         }
 
         free(new_id);
@@ -1406,6 +1417,7 @@ int main(int argc, char *argv[])
                                           app_cfg->time_format_recent);
                     shyake_free_mail_detail(d);
                 } else {
+                    print_drafts_error("Failed to read draft.");
                     ret = -1;
                 }
             } else {
@@ -1413,6 +1425,7 @@ int main(int argc, char *argv[])
                 shyake_saved_list *slist = cli_list_drafts(ctx, config_dir,
                     app_cfg->username);
                 if (!slist) {
+                    print_drafts_error("Failed to list drafts.");
                     ret = -1;
                 } else if (slist->count > 0) {
                     shyake_mail_list mlist;
@@ -2130,6 +2143,7 @@ int main(int argc, char *argv[])
                                        app_cfg->time_format_recent);
                 shyake_free_mail_detail(d);
             } else {
+                print_drafts_error("Failed to read draft.");
                 dret = -1;
             }
             shyake_free_ctx(dctx);

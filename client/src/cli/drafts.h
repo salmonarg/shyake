@@ -7,7 +7,12 @@
 
 /* Local encrypted drafts of this reference CLI. The on-disk JSON
  * format is client-specific; the crypto uses libshyake's public
- * self-encryption primitives. */
+ * self-encryption primitives. These functions never print: on
+ * failure the detail is recorded and read via
+ * cli_drafts_last_error(). */
+
+/* Detail of the last drafts failure, "" if none */
+const char* cli_drafts_last_error(void);
 
 /*
  * Save an encrypted draft to <config_dir>/drafts/<id>.json.
