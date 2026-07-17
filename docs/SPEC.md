@@ -484,6 +484,9 @@ void        shyake_free_ctx(shyake_ctx *ctx);
 /* passphrase for secret key files (§3.7) */
 void shyake_set_passphrase(shyake_ctx *ctx, const char *pp);
 void shyake_set_new_passphrase(shyake_ctx *ctx, const char *pp);
+
+/* detail of the last failure on this ctx, "" if none */
+const char* shyake_last_error(shyake_ctx *ctx);
 ```
 
 Internal struct definitions live in `src/lib/lib_internal.h`, not

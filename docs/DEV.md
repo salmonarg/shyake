@@ -128,6 +128,20 @@ cd client && make
 bash tests/e2e_test.sh
 ```
 
+### Non-interactive passphrase
+
+`SHYAKE_PASSPHRASE` skips the interactive prompt wherever a command
+needs to unlock the secret key (and `init` uses it as the initial
+passphrase). Handy for scripting tests, not meant for end users —
+inline values land in shell history, exported ones are visible to
+child processes.
+
+```sh
+export SHYAKE_PASSPHRASE=$(openssl rand -base64 12)
+shyake init
+shyake check inbox
+```
+
 ## Server
 
 ### Local development

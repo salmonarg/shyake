@@ -130,6 +130,16 @@ cd client && make
 bash tests/e2e_test.sh
 ```
 
+### 非対話的なパスフレーズ
+
+`SHYAKE_PASSPHRASE` を設定すると、秘密鍵の解錠が必要などの場面で対話的プロンプトをスキップできる（`init` も初期パスフレーズとしてこれを使う）。スクリプトによるテストを想定したもので、一般ユーザー向けではない——コマンドラインに直接書いた値はシェル履歴に残り、エクスポートした環境変数は子プロセスから見える。
+
+```sh
+export SHYAKE_PASSPHRASE=$(openssl rand -base64 12)
+shyake init
+shyake check inbox
+```
+
 ## サーバー
 
 ### ローカル開発

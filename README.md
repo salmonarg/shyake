@@ -390,13 +390,14 @@ CHECK_COLUMNS=id,sender,subject,size,date
 # Disable colors (1 = disable)
 # NO_COLOR=0
 
+# Editor for 'shyake compose' (default: ed)
+# Falls back to $VISUAL, then $EDITOR
+# EDITOR="ed"
+
 # Default action when running without arguments
 # 0 = man, 1 = check inbox, 2 = check inbox --count
 DEFAULT_ACTION=0
 ```
-
-Set the `SHYAKE_PASSPHRASE` environment variable to supply the key
-passphrase non-interactively, e.g. for scripting.
 
 Use `enc` and `dec` to encrypt or decrypt a standalone file with
 ML-KEM-768 + ChaCha20-Poly1305. These commands are intended for

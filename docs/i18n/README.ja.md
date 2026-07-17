@@ -338,12 +338,14 @@ CHECK_COLUMNS=id,sender,subject,size,date
 # Disable colors (1 = disable)
 # NO_COLOR=0
 
+# Editor for 'shyake compose' (default: ed)
+# Falls back to $VISUAL, then $EDITOR
+# EDITOR="ed"
+
 # Default action when running without arguments
 # 0 = man, 1 = check inbox, 2 = check inbox --count
 DEFAULT_ACTION=0
 ```
-
-`SHYAKE_PASSPHRASE` 環境変数を設定すると、鍵のパスフレーズを非対話的に渡せます（スクリプト用途など）。
 
 `enc` と `dec` を使うと、単体のファイルを
 ML-KEM-768 + ChaCha20-Poly1305 で暗号化・復号できます。これらのコマンドはデバッグ/テスト用途を想定しています。

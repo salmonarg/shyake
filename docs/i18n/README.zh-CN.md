@@ -337,12 +337,14 @@ CHECK_COLUMNS=id,sender,subject,size,date
 # Disable colors (1 = disable)
 # NO_COLOR=0
 
+# Editor for 'shyake compose' (default: ed)
+# Falls back to $VISUAL, then $EDITOR
+# EDITOR="ed"
+
 # Default action when running without arguments
 # 0 = man, 1 = check inbox, 2 = check inbox --count
 DEFAULT_ACTION=0
 ```
-
-设置 `SHYAKE_PASSPHRASE` 环境变量可以非交互式地提供密钥 passphrase，可用于脚本。
 
 使用 `enc` 和 `dec` 可以通过 ML-KEM-768 + ChaCha20-Poly1305
 加密或解密独立文件。这些命令用于调试/测试目的。

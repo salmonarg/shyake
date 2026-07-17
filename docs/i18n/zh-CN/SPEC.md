@@ -391,6 +391,9 @@ void        shyake_free_ctx(shyake_ctx *ctx);
 /* passphrase for secret key files (§3.7) */
 void shyake_set_passphrase(shyake_ctx *ctx, const char *pp);
 void shyake_set_new_passphrase(shyake_ctx *ctx, const char *pp);
+
+/* 本上下文最近一次失败的详细信息，无则为 "" */
+const char* shyake_last_error(shyake_ctx *ctx);
 ```
 
 内部结构体定义位于 `src/lib/lib_internal.h`，不对调用者暴露。库从不向 stdout/stderr 写入任何内容：失败时它会记录一条人类可读的详细信息（通过 `shyake_last_error(ctx)` 获取，在同一上下文的下一次调用前有效），并返回语义化错误码。错误码以类型化枚举（`shyake_err`）返回，其中 `SHYAKE_OK = 0` 以保持向后兼容：

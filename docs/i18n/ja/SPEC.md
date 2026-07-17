@@ -399,6 +399,9 @@ void        shyake_free_ctx(shyake_ctx *ctx);
 /* passphrase for secret key files (§3.7) */
 void shyake_set_passphrase(shyake_ctx *ctx, const char *pp);
 void shyake_set_new_passphrase(shyake_ctx *ctx, const char *pp);
+
+/* このコンテキストの直近の失敗の詳細、なければ "" */
+const char* shyake_last_error(shyake_ctx *ctx);
 ```
 
 内部構造体の定義は `src/lib/lib_internal.h` にあり、呼び出し側には公開されない。ライブラリは stdout/stderr へ一切出力しない。失敗時には人間可読の詳細を記録し（`shyake_last_error(ctx)` で取得でき、同一コンテキストでの次の呼び出しまで有効）、セマンティックなエラーコードを返す。エラーコードは型付き列挙型（`shyake_err`）として返され、後方互換のため `SHYAKE_OK = 0` である：
