@@ -15,12 +15,12 @@ MAX_MAIL_SIZE = 196608 # 192 KiB
 # optional: without it the endpoint hits GitHub on every request
 [[kv_namespaces]]
 binding = "VERSION_CACHE"
-id = "00000000000000000000000000000000"
+id = "3d8c337cb988409cad093b6a1793e36f"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "shyake-db"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "5959f25d-73c8-4608-8150-4c7a33ba3243"
 migrations_dir = "migrations"
 
 [[rules]]
