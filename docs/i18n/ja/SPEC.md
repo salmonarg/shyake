@@ -56,16 +56,16 @@ shyake/
 - **標準**：C11、POSIX.1-2008（`_POSIX_C_SOURCE=200809L`）
 - **ビルドシステム**：GNU Make；クロスプラットフォーム（macOS、GNU/Linux、Termux）
 - **成果物**：
-  - `bin/shyake` — CLI バイナリ、`libshyake.a` を静的リンク
-  - `lib/libshyake.a` — 静的ライブラリ
-  - `lib/libshyake.so` / `libshyake.dylib` — FFI 用共有ライブラリ
+  - `bin/shyake`: CLI バイナリ、`libshyake.a` を静的リンク
+  - `lib/libshyake.a`: 静的ライブラリ
+  - `lib/libshyake.so` / `libshyake.dylib`: FFI 用共有ライブラリ
 - **依存関係**：
-  - `liboqs`（常に静的リンク）— ML-KEM と ML-DSA
-  - `libcurl` — HTTP トランスポート
-  - `libcrypto`（OpenSSL）— SHA-256 フィンガープリント、
+  - `liboqs`（常に静的リンク）: ML-KEM と ML-DSA
+  - `libcurl`: HTTP トランスポート
+  - `libcrypto`（OpenSSL）: SHA-256 フィンガープリント、
     SHA-1（PoW）、ChaCha20-Poly1305 AEAD、
     scrypt KDF（`EVP_PBE_scrypt`）
-  - `cJSON`（同梱）— JSON 解析
+  - `cJSON`（同梱）: JSON 解析
 
 #### 2.3 サーバー
 

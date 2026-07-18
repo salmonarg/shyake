@@ -39,7 +39,7 @@ npx wrangler login
 ```
 
 `npx` will prompt you to install Wrangler on first run if it is
-not already present — no separate install step is needed.
+not already present. No separate install step is needed.
 
 3. **Create the D1 database**:
 
@@ -105,7 +105,7 @@ will error on every API call.
 
 Choose one of the following:
 
-**Option A — Dashboard**: Go to
+**Option A: Dashboard**: Go to
 `Compute → Workers & Pages → Create application → Continue with GitHub`
 in the Cloudflare Dashboard (you may need to `Add GitHub account` at the first
 time), select your fork, and set:
@@ -119,7 +119,7 @@ time), select your fork, and set:
 
 Future pushes to your fork will redeploy automatically.
 
-**Option B — CLI only**:
+**Option B: CLI only**:
 
 ```sh
 cd server
@@ -138,7 +138,7 @@ A `200 OK` confirms the Worker and database are working correctly.
 Self-hosting runs the exact same Worker code on your own machine,
 inside the local `workerd` runtime that ships with Wrangler. D1
 (SQLite) and KV are emulated locally by Wrangler itself, so **no
-Cloudflare account is needed** — no `wrangler login`, no resource
+Cloudflare account is needed**. No `wrangler login`, no resource
 creation on the dashboard.
 
 Prerequisites:
@@ -159,7 +159,7 @@ cd shyake/server
 npm install
 ```
 
-2. **Edit `server/wrangler.toml`** — only the `[vars]` section
+2. **Edit `server/wrangler.toml`**: only the `[vars]` section
 matters. The `database_id` and KV `id` are ignored in local mode, so
 the placeholder values can stay as they are:
 
@@ -183,7 +183,7 @@ federated mail back to you.
 npx wrangler d1 migrations apply shyake-db --local
 ```
 
-Note the `--local` flag — this writes to a SQLite file on disk
+Note the `--local` flag. This writes to a SQLite file on disk
 instead of a Cloudflare-hosted database.
 
 4. **Run the server**:
@@ -192,7 +192,7 @@ instead of a Cloudflare-hosted database.
 npx wrangler dev --local --ip 127.0.0.1 --port 8787
 ```
 
-Verify with `curl http://127.0.0.1:8787/health` — a `200 OK` means
+Verify with `curl http://127.0.0.1:8787/health`. A `200 OK` means
 the Worker and database are working.
 
 Keep the server bound to `127.0.0.1` and let a reverse proxy handle
@@ -204,7 +204,7 @@ reasonable on a trusted LAN without federation.
 This step is **required for federation**. Instances always contact
 each other over `https://<domain>/...`, so your instance must be
 reachable at `https://your.domain.example` with a certificate that
-other instances will accept — a self-signed certificate will not
+other instances will accept. A self-signed certificate will not
 work. If your instance is private (its users only mail each other),
 you can skip this step and let clients connect over plain HTTP.
 
@@ -217,7 +217,7 @@ your.domain.example {
 }
 ```
 
-nginx with a certbot-managed certificate works just as well — proxy
+nginx with a certbot-managed certificate works just as well. Proxy
 `https://your.domain.example` to `http://127.0.0.1:8787`.
 
 6. **Keep it running**
@@ -250,14 +250,14 @@ sudo systemctl enable --now shyake
 
 **Data location and backups**
 
-All local state — the D1 SQLite database and the KV cache — lives
+All local state (the D1 SQLite database and the KV cache) lives
 under `server/.wrangler/state/`. Backing up your instance means
 backing up that directory (stop the server first, or use SQLite-safe
 tooling, to avoid copying a database mid-write). Deleting it resets
 the instance to an empty database. Pass `--persist-to <dir>` to
 `wrangler dev` to store state somewhere else.
 
-**Caveats — know what you are running**
+**Caveats: Know what you are running**
 
 `wrangler dev` is Wrangler's development server, not a hardened
 production server. It runs the same `workerd` runtime that powers
@@ -270,7 +270,7 @@ it holds up fine, but be aware of its development-oriented behavior:
   restarts your instance immediately. Update deliberately: pull,
   review, then let it reload (or restart the service yourself).
 - **Single process, no supervision of its own.** There is no
-  clustering and no built-in crash recovery — that is what the
+  clustering and no built-in crash recovery. That is what the
   systemd unit above is for.
 - **No rate limiting or DDoS protection.** On Cloudflare those come
   with the platform. Self-hosted, your reverse proxy is the place to
@@ -281,6 +281,6 @@ it holds up fine, but be aware of its development-oriented behavior:
   stray keypresses (`x` clears the console, `Ctrl+C` exits).
 
 If your instance outgrows this setup, the Cloudflare deployment path
-above is the scalable option — the database can be migrated by
+above is the scalable option. The database can be migrated by
 exporting the local SQLite file and importing it with
 `wrangler d1 execute --remote`.

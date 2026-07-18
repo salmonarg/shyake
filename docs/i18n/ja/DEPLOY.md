@@ -97,7 +97,7 @@ Cloudflare の CI パイプラインはデータベースマイグレーショ�
 
 以下のいずれかを選択します：
 
-**方法 A — ダッシュボード**：Cloudflare ダッシュボードで
+**方法 A: ダッシュボード**：Cloudflare ダッシュボードで
 `Compute → Workers & Pages → Create application → Continue with GitHub`
 に進み（初回は `Add GitHub account` が必要な場合があります）、自分の fork を選択して次のように設定します：
 
@@ -110,7 +110,7 @@ Cloudflare の CI パイプラインはデータベースマイグレーショ�
 
 以降、fork への push で自動的に再デプロイされます。
 
-**方法 B — CLI のみ**：
+**方法 B: CLI のみ**：
 
 ```sh
 cd server

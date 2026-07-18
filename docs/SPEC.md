@@ -60,15 +60,15 @@ shyake/
 - **Standard**: C11, POSIX.1-2008 (`_POSIX_C_SOURCE=200809L`)
 - **Build system**: GNU Make; cross-platform (macOS, GNU/Linux, Termux)
 - **Artifacts**:
-  - `bin/shyake` — CLI binary, statically linked against `libshyake.a`
-  - `lib/libshyake.a` — static library
-  - `lib/libshyake.so` / `libshyake.dylib` — shared library for FFI
+  - `bin/shyake`: CLI binary, statically linked against `libshyake.a`
+  - `lib/libshyake.a`: static library
+  - `lib/libshyake.so` / `libshyake.dylib`: shared library for FFI
 - **Dependencies**:
-  - `liboqs` (always linked statically) — ML-KEM and ML-DSA
-  - `libcurl` — HTTP transport
-  - `libcrypto` (OpenSSL) — SHA-256 fingerprints, SHA-1 (PoW),
+  - `liboqs` (always linked statically): ML-KEM and ML-DSA
+  - `libcurl`: HTTP transport
+  - `libcrypto` (OpenSSL): SHA-256 fingerprints, SHA-1 (PoW),
     ChaCha20-Poly1305 AEAD, scrypt KDF (`EVP_PBE_scrypt`)
-  - `cJSON` (vendored) — JSON parsing
+  - `cJSON` (vendored): JSON parsing
 
 #### 2.3 Server
 
@@ -135,7 +135,7 @@ X-Shyake-Pow:       <Hashcash token>
 
 The signed message is a deterministic string constructed from the
 HTTP method, endpoint (including the query string), username, and
-timestamp — e.g.:
+timestamp. For example:
 
 ```
 GET:/api/mail?type=inbox:salmon:1749513600
@@ -187,7 +187,7 @@ requests whose timestamp deviates from server time by more than
 
 #### 3.5 Proof of Work
 
-Every authenticated request — reads included — requires a
+Every authenticated request, including reads, requires a
 Hashcash-v1-style PoW token with a **20-bit** SHA-1 difficulty:
 
 ```
@@ -279,7 +279,7 @@ unlocking the KEM secret key. Draft ids are small integers allocated
 locally (max existing id + 1, created with `O_EXCL`).
 
 The compose editor works on a plaintext temp file created with
-`mkstemp` (mode 0600) inside the config directory — never `/tmp`.
+`mkstemp` (mode 0600) inside the config directory, never `/tmp`.
 The file is zero-overwritten and unlinked afterwards. When the
 editor is `vim`/`nvim`, it is invoked with `-n -i NONE` so no
 plaintext leaks into swap or viminfo files.
@@ -464,12 +464,12 @@ verifies the new fingerprint through a trusted channel.
 
 `libshyake` is the protocol implementation, and the bundled CLI is
 only a reference client built on top of it. The library contains
-exclusively core, universally applicable logic — cryptography,
+exclusively core, universally applicable logic: cryptography,
 wire-format encoding, and the send/receive operations in this spec.
 Client-specific concerns (argument parsing, display, prompts,
 self-update) live in `src/cli/` and must not migrate into the
 library. Third-party developers can build fully protocol-compatible
-clients — TUI, GUI, or any language via FFI — on `libshyake` alone.
+clients (TUI, GUI, or any language via FFI) on `libshyake` alone.
 
 The core library exposes a stable C API through `include/shyake.h`.
 Internal state is hidden behind an opaque pointer to prevent ABI

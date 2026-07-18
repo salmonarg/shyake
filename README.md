@@ -175,7 +175,7 @@ Recipient, subject, and body are all encrypted at rest. Saving a
 draft needs no passphrase (only your public key is used); listing or
 reading drafts requires unlocking your secret key.
 
-The `To:` field may be left empty — `check drafts` shows such a
+The `To:` field may be left empty. `check drafts` shows such a
 draft as `(null)`:
 
 ```sh
