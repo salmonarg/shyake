@@ -113,7 +113,7 @@ time), select your fork, and set:
 | Field | Value |
 |-------|-------|
 | Framework preset | None |
-| Build command | `` |
+| Build command | None |
 | Deploy command | `npx wrangler deploy` |
 | Root directory | `/server` |
 

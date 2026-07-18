@@ -38,7 +38,7 @@ FEDERATION_ENABLED = false
 npx wrangler login
 ```
 
-Wrangler が未インストールの場合、初回実行時に `npx` がインストールを促します——別途のインストール手順は不要です。
+Wrangler が未インストールの場合、初回実行時に `npx` がインストールを促します。別途のインストール手順は不要です。
 
 3. **D1 データベースを作成**します：
 
@@ -55,7 +55,7 @@ npx wrangler kv namespace create VERSION_CACHE
 ```
 
 出力から `id` をコピーします。各インスタンスは自身のクライアント向けに GitHub Releases API を中継して `shyake update`
-を支えます。この KV ネームスペースはその照会結果を 1 時間キャッシュします。このバインディングは省略可能です——なくてもエンドポイントは動作しますが、リクエストごとに GitHub へアクセスします。
+を支えます。この KV ネームスペースはその照会結果を 1 時間キャッシュします。このバインディングは省略可能です。なくてもエンドポイントは動作しますが、リクエストごとに GitHub へアクセスします。
 
 5. fork 内の **`server/wrangler.toml` を編集**します：
 
@@ -104,7 +104,7 @@ Cloudflare の CI パイプラインはデータベースマイグレーショ�
 | 項目 | 値 |
 |-------|-------|
 | Framework preset | None |
-| Build command | `` |
+| Build command | None |
 | Deploy command | `npx wrangler deploy` |
 | Root directory | `/server` |
 
@@ -127,7 +127,7 @@ npx wrangler deploy
 
 セルフホスティングでは、Wrangler に同梱されているローカルの `workerd`
 ランタイム上で、まったく同じ Worker コードを自分のマシンで動かします。D1（SQLite）と
-KV は Wrangler 自身がローカルでエミュレートするため、**Cloudflare アカウントは不要**です——`wrangler login` も、ダッシュボードでのリソース作成も必要ありません。
+KV は Wrangler 自身がローカルでエミュレートするため、**Cloudflare アカウントは不要**です。`wrangler login` も、ダッシュボードでのリソース作成も必要ありません。
 
 前提条件：
 
@@ -147,7 +147,7 @@ cd shyake/server
 npm install
 ```
 
-2. **`server/wrangler.toml` を編集**します——重要なのは `[vars]`
+2. **`server/wrangler.toml` を編集**します。重要なのは `[vars]`
 セクションだけです。ローカルモードでは `database_id` と KV の `id`
 は無視されるため、プレースホルダーのままで構いません：
 
@@ -168,7 +168,7 @@ MAX_MAIL_SIZE        = 196608 # 192 KiB；786432（768 KiB）を超えないこ�
 npx wrangler d1 migrations apply shyake-db --local
 ```
 
-`--local` フラグに注意してください——Cloudflare
+`--local` フラグに注意してください。Cloudflare
 がホストするデータベースではなく、ディスク上の SQLite ファイルに書き込みます。
 
 4. **サーバーを起動**します：
@@ -177,7 +177,7 @@ npx wrangler d1 migrations apply shyake-db --local
 npx wrangler dev --local --ip 127.0.0.1 --port 8787
 ```
 
-`curl http://127.0.0.1:8787/health` で確認します——`200 OK`
+`curl http://127.0.0.1:8787/health` で確認します。`200 OK`
 が返れば、Worker とデータベースが正常に動作しています。
 
 サーバーは `127.0.0.1` にバインドしたままにし、外部トラフィックはリバースプロキシに処理させます（次の手順）。`0.0.0.0`
@@ -188,7 +188,7 @@ npx wrangler dev --local --ip 127.0.0.1 --port 8787
 この手順は**フェデレーションに必須**です。インスタンス同士は常に
 `https://<domain>/...` で通信するため、あなたのインスタンスは
 `https://your.domain.example`
-で到達可能であり、他のインスタンスが受け入れる証明書を持っていなければなりません——自己署名証明書は使えません。インスタンスが私的なもの（ユーザー同士でのみメールをやり取りする）であれば、この手順を省略してクライアントに平文
+で到達可能であり、他のインスタンスが受け入れる証明書を持っていなければなりません。自己署名証明書は使えません。インスタンスが私的なもの（ユーザー同士でのみメールをやり取りする）であれば、この手順を省略してクライアントに平文
 HTTP で接続させることもできます。
 
 [Caddy](https://caddyserver.com/) を使えば証明書の取得と更新は自動です。`Caddyfile`
@@ -200,7 +200,7 @@ your.domain.example {
 }
 ```
 
-certbot で管理する証明書を使った nginx でも同様に動作します——`https://your.domain.example`
+certbot で管理する証明書を使った nginx でも同様に動作します。`https://your.domain.example`
 を `http://127.0.0.1:8787` へプロキシしてください。
 
 6. **常時稼働させる**
@@ -233,13 +233,13 @@ sudo systemctl enable --now shyake
 
 **データの場所とバックアップ**
 
-すべてのローカル状態——D1 の SQLite データベースと KV キャッシュ——は
+すべてのローカル状態（D1 の SQLite データベースと KV キャッシュ）は
 `server/.wrangler/state/`
 以下に保存されます。インスタンスのバックアップとは、このディレクトリのバックアップです（書き込み中のデータベースをコピーしないよう、先にサーバーを停止するか、SQLite
 に安全なツールを使ってください）。このディレクトリを削除するとインスタンスは空のデータベースにリセットされます。`wrangler dev`
 に `--persist-to <dir>` を渡せば、状態を別の場所に保存できます。
 
-**注意事項——何を動かしているのかを理解する**
+**注意事項：何を動かしているのかを理解する**
 
 `wrangler dev` は Wrangler
 の開発サーバーであり、堅牢化された本番サーバーではありません。Cloudflare
@@ -250,7 +250,7 @@ Workers を支えているのと同じ `workerd`
   Worker をリロードします。開発中は便利ですが、サーバー上では `server/`
   内のファイル編集や `git pull` が即座にインスタンスの再起動を意味します。更新は慎重に：pull
   して、変更を確認してから、リロードさせる（または自分でサービスを再起動する）ようにしてください。
-- **単一プロセスで、自前の監視機能なし。**クラスタリングも組み込みのクラッシュ復旧もありません——それを担うのが上記の
+- **単一プロセスで、自前の監視機能なし。**クラスタリングも組み込みのクラッシュ復旧もありません。それを担うのが上記の
   systemd ユニットです。
 - **レート制限や DDoS 防御なし。**Cloudflare
   上ではプラットフォームが提供します。セルフホストでインスタンスを公開する場合、レート制限を加える場所はリバースプロキシです。
@@ -260,6 +260,6 @@ Workers を支えているのと同じ `workerd`
   で動かす場合は誤入力に注意してください（`x` はコンソールをクリアし、`Ctrl+C` は終了します）。
 
 インスタンスがこの構成の限界を超えたら、スケールできるのは前述の
-Cloudflare デプロイの方です——データベースは、ローカルの SQLite
+Cloudflare デプロイの方です。データベースは、ローカルの SQLite
 ファイルをエクスポートして `wrangler d1 execute --remote`
 でインポートすれば移行できます。

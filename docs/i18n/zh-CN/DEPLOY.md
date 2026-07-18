@@ -39,7 +39,7 @@ FEDERATION_ENABLED = false
 npx wrangler login
 ```
 
-如果 Wrangler 尚未安装，`npx` 会在首次运行时提示安装——无需单独的安装步骤。
+如果 Wrangler 尚未安装，`npx` 会在首次运行时提示安装。无需单独的安装步骤。
 
 3. **创建 D1 数据库**：
 
@@ -56,7 +56,7 @@ npx wrangler kv namespace create VERSION_CACHE
 ```
 
 从输出中复制 `id`。每个实例都会为自己的客户端中继 GitHub
-Releases API 以支持 `shyake update`；此 KV 命名空间将查询结果缓存一小时。该绑定是可选的——没有它端点仍然可用，只是每次请求都会访问 GitHub。
+Releases API 以支持 `shyake update`；此 KV 命名空间将查询结果缓存一小时。该绑定是可选的。没有它端点仍然可用，只是每次请求都会访问 GitHub。
 
 5. **编辑你 fork 中的 `server/wrangler.toml`**：
 
@@ -98,20 +98,20 @@ Worker 的每次 API 调用都会报错。
 
 选择以下方式之一：
 
-**方式 A —— 控制台（Dashboard）**：在 Cloudflare 控制台中进入
+**方式 A：控制台（Dashboard）**：在 Cloudflare 控制台中进入
 `Compute → Workers & Pages → Create application → Continue with GitHub`
 （首次使用可能需要先 `Add GitHub account`），选择你的 fork，并设置：
 
 | 字段 | 值 |
 |-------|-------|
 | Framework preset | None |
-| Build command | `` |
+| Build command | None |
 | Deploy command | `npx wrangler deploy` |
 | Root directory | `/server` |
 
 之后推送到你的 fork 时会自动重新部署。
 
-**方式 B —— 仅使用 CLI**：
+**方式 B：仅使用 CLI**：
 
 ```sh
 cd server
@@ -128,7 +128,7 @@ npx wrangler deploy
 
 自托管就是在你自己的机器上、通过 Wrangler 自带的本地 `workerd`
 运行时来运行完全相同的 Worker 代码。D1（SQLite）和 KV 都由 Wrangler
-在本地模拟，因此**不需要 Cloudflare 账户**——不需要 `wrangler login`，也不需要在控制台创建任何资源。
+在本地模拟，因此**不需要 Cloudflare 账户**。不需要 `wrangler login`，也不需要在控制台创建任何资源。
 
 前提条件：
 
@@ -148,7 +148,7 @@ cd shyake/server
 npm install
 ```
 
-2. **编辑 `server/wrangler.toml`**——只有 `[vars]` 部分是重要的。本地模式下会忽略
+2. **编辑 `server/wrangler.toml`**：只有 `[vars]` 部分是重要的。本地模式下会忽略
 `database_id` 和 KV 的 `id`，占位符保持原样即可：
 
 ```toml
@@ -168,7 +168,7 @@ MAX_MAIL_SIZE        = 196608 # 192 KiB；不要超过 786432（768 KiB）
 npx wrangler d1 migrations apply shyake-db --local
 ```
 
-注意 `--local` 标志——它会写入磁盘上的 SQLite
+注意 `--local` 标志。它会写入磁盘上的 SQLite
 文件，而不是 Cloudflare 托管的数据库。
 
 4. **运行服务端**：
@@ -177,7 +177,7 @@ npx wrangler d1 migrations apply shyake-db --local
 npx wrangler dev --local --ip 127.0.0.1 --port 8787
 ```
 
-用 `curl http://127.0.0.1:8787/health` 验证——返回 `200 OK`
+用 `curl http://127.0.0.1:8787/health` 验证。返回 `200 OK`
 即表示 Worker 和数据库工作正常。
 
 让服务端只绑定 `127.0.0.1`，由反向代理处理外部流量（见下一步）。直接绑定
@@ -187,7 +187,7 @@ npx wrangler dev --local --ip 127.0.0.1 --port 8787
 
 这一步是**参与联邦网络的必要条件**。实例之间总是通过
 `https://<domain>/...` 互相通信，所以你的实例必须能在
-`https://your.domain.example` 被访问到，并且证书要能被其他实例接受——自签名证书不行。如果你的实例是私有的（用户之间只互发邮件），可以跳过这一步，让客户端用明文
+`https://your.domain.example` 被访问到，并且证书要能被其他实例接受。自签名证书不行。如果你的实例是私有的（用户之间只互发邮件），可以跳过这一步，让客户端用明文
 HTTP 连接。
 
 使用 [Caddy](https://caddyserver.com/) 时，证书会自动获取和续期；整个
@@ -199,7 +199,7 @@ your.domain.example {
 }
 ```
 
-用 nginx 加 certbot 管理的证书同样可行——把
+用 nginx 加 certbot 管理的证书同样可行。把
 `https://your.domain.example` 代理到 `http://127.0.0.1:8787`。
 
 6. **保持运行**
@@ -231,12 +231,12 @@ sudo systemctl enable --now shyake
 
 **数据位置与备份**
 
-所有本地状态——D1 的 SQLite 数据库和 KV 缓存——都存放在
+所有本地状态（D1 的 SQLite 数据库和 KV 缓存）都存放在
 `server/.wrangler/state/` 目录下。备份实例就是备份这个目录（先停止服务端，或使用对
 SQLite 安全的工具，避免在写入过程中复制数据库）。删除该目录会把实例重置为空数据库。可以给
 `wrangler dev` 传 `--persist-to <dir>` 把状态存到别的位置。
 
-**注意事项——了解你在运行什么**
+**注意事项：了解你在运行什么**
 
 `wrangler dev` 是 Wrangler
 的开发服务器，不是加固过的生产服务器。它运行的正是驱动 Cloudflare
@@ -245,7 +245,7 @@ Workers 的同一个 `workerd` 运行时，对个人或小型社区实例来说�
 - **文件监听 / 热重载。**它会监听源码目录，文件变更时重新加载
   Worker。开发时很方便，但在服务器上意味着在 `server/` 里编辑文件或执行
   `git pull` 会立即重启你的实例。请谨慎更新：先 pull、检查改动，再让它重载（或自己重启服务）。
-- **单进程，自身没有守护能力。**没有集群，也没有内置的崩溃恢复——这正是上面
+- **单进程，自身没有守护能力。**没有集群，也没有内置的崩溃恢复。这正是上面
   systemd 单元的作用。
 - **没有限流或 DDoS 防护。**在 Cloudflare
   上这些由平台提供。自托管时，如果实例对公网开放，应在反向代理层添加限流。
@@ -254,5 +254,5 @@ Workers 的同一个 `workerd` 运行时，对个人或小型社区实例来说�
   里运行，注意不要误按按键（`x` 会清空控制台，`Ctrl+C` 会退出）。
 
 如果实例规模超出了这套方案的承载能力，上文的 Cloudflare
-部署路径才是可扩展的选择——数据库可以通过导出本地 SQLite 文件并用
+部署路径才是可扩展的选择。数据库可以通过导出本地 SQLite 文件并用
 `wrangler d1 execute --remote` 导入来迁移。

@@ -58,15 +58,15 @@ shyake/
 - **标准**：C11，POSIX.1-2008（`_POSIX_C_SOURCE=200809L`）
 - **构建系统**：GNU Make；跨平台（macOS、GNU/Linux、Termux）
 - **产物**：
-  - `bin/shyake` —— CLI 二进制文件，静态链接 `libshyake.a`
-  - `lib/libshyake.a` —— 静态库
-  - `lib/libshyake.so` / `libshyake.dylib` —— 用于 FFI 的共享库
+  - `bin/shyake`: CLI 二进制文件，静态链接 `libshyake.a`
+  - `lib/libshyake.a`: 静态库
+  - `lib/libshyake.so` / `libshyake.dylib`: 用于 FFI 的共享库
 - **依赖**：
-  - `liboqs`（始终静态链接）—— ML-KEM 与 ML-DSA
-  - `libcurl` —— HTTP 传输
-  - `libcrypto`（OpenSSL）—— SHA-256 指纹、SHA-1 (PoW)、ChaCha20-Poly1305
+  - `liboqs`（始终静态链接）: ML-KEM 与 ML-DSA
+  - `libcurl`: HTTP 传输
+  - `libcrypto`（OpenSSL）: SHA-256 指纹、SHA-1 (PoW)、ChaCha20-Poly1305
   AEAD、scrypt KDF (`EVP_PBE_scrypt`)
-  - `cJSON`（内置）—— JSON 解析
+  - `cJSON`（内置）: JSON 解析
 
 #### 2.3 服务端
 
@@ -121,7 +121,7 @@ X-Shyake-Signature: <base64(ML-DSA-65 signature)>
 X-Shyake-Pow:       <Hashcash token>
 ```
 
-被签名的消息是由 HTTP 方法、端点（含查询字符串）、用户名和时间戳构成的确定性字符串——例如：
+被签名的消息是由 HTTP 方法、端点（含查询字符串）、用户名和时间戳构成的确定性字符串。例如：
 
 ```
 GET:/api/mail?type=inbox:salmon:1749513600
@@ -165,7 +165,7 @@ GET:/api/mail?type=inbox:salmon:1749513600
 
 #### 3.5 工作量证明（PoW）
 
-每个认证请求——包括读取操作——都需要一个 Hashcash-v1 风格的
+每个认证请求（包括读取操作）都需要一个 Hashcash-v1 风格的
 PoW 令牌，SHA-1 难度为 **20 位**：
 
 ```
@@ -229,7 +229,7 @@ passphrase 通过交互式提示输入（终端回显关闭），或通过`SHYAK
 
 由于保存只需要公钥，`compose` 不需要 passphrase；列出、阅读、编辑和发送草稿则需要解锁 KEM 私钥。草稿 id 是本地分配的小整数（现有最大 id + 1，用 `O_EXCL` 创建）。
 
-compose 编辑器操作的明文临时文件由 `mkstemp` 创建（权限 0600），位于配置目录内——绝不使用 `/tmp`。结束后该文件会被零覆写并删除。当编辑器为 `vim`/`nvim` 时，以 `-n -i NONE` 启动，确保明文不会泄漏到 swap 或 viminfo 文件中。
+compose 编辑器操作的明文临时文件由 `mkstemp` 创建（权限 0600），位于配置目录内，绝不使用 `/tmp`。结束后该文件会被零覆写并删除。当编辑器为 `vim`/`nvim` 时，以 `-n -i NONE` 启动，确保明文不会泄漏到 swap 或 viminfo 文件中。
 
 ---
 
@@ -377,7 +377,7 @@ RUN 'shyake fingerprint <username>' to inspect and update trust.
 
 ### 8. 客户端库 ABI
 
-`libshyake` 是协议的实现本体，随附的 CLI 只是构建在其之上的一个参考客户端。库中只包含核心的、普适性的逻辑——密码学、线格式编码，以及本规范定义的收发操作。客户端特有的部分（参数解析、显示、交互提示、自更新）位于 `src/cli/`，不得迁入库中。第三方开发者可以仅基于 `libshyake` 构建完全兼容协议的客户端——无论是 TUI、GUI，还是通过 FFI 使用任何语言。
+`libshyake` 是协议的实现本体，随附的 CLI 只是构建在其之上的一个参考客户端。库中只包含核心的、普适性的逻辑：密码学、线格式编码，以及本规范定义的收发操作。客户端特有的部分（参数解析、显示、交互提示、自更新）位于 `src/cli/`，不得迁入库中。第三方开发者可以仅基于 `libshyake` 构建完全兼容协议的客户端（无论是 TUI、GUI，还是通过 FFI 使用任何语言）。
 
 核心库通过 `include/shyake.h` 暴露稳定的 C API。内部状态隐藏在不透明指针之后，以防止
 ABI 破坏：

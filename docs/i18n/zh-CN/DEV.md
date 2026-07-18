@@ -130,7 +130,7 @@ bash tests/e2e_test.sh
 
 ### 非交互式 passphrase
 
-设置 `SHYAKE_PASSPHRASE` 可以跳过所有需要解锁密钥场景下的交互式提示（`init` 也会用它作为初始 passphrase）。这是为了方便脚本化测试，并非面向普通用户——内联写在命令里的值会进入 shell 历史，导出的环境变量对子进程可见。
+设置 `SHYAKE_PASSPHRASE` 可以跳过所有需要解锁密钥场景下的交互式提示（`init` 也会用它作为初始 passphrase）。这是为了方便脚本化测试，并非面向普通用户。内联写在命令里的值会进入 shell 历史，导出的环境变量对子进程可见。
 
 ```sh
 export SHYAKE_PASSPHRASE=$(openssl rand -base64 12)
