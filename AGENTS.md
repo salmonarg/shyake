@@ -60,6 +60,20 @@ npx wrangler dev --local    # local dev server on http://localhost:8787
 npx wrangler d1 migrations apply shyake-db --local   # apply D1 migrations
 ```
 
+### Formatting
+
+```sh
+# C: .clang-format at repo root (requires clang-format installed)
+clang-format -i client/src/**/*.c client/src/**/*.h
+
+# TypeScript: .prettierrc at repo root
+cd server
+npm run format          # rewrite src/
+npm run format:check    # check only
+```
+
+Vendored code (`client/src/lib/vendor/`) is excluded from formatting.
+
 ### End-to-end tests
 
 ```sh

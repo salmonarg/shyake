@@ -1,0 +1,35 @@
+# Matches the C conventions in AGENTS.md: 4-space indent, 80 columns,
+# K&R braces with function braces on the next line.
+BasedOnStyle: LLVM
+Language: Cpp
+IndentWidth: 4
+ColumnLimit: 80
+UseTab: Never
+
+# K&R for control flow, Allman only for function definitions
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterFunction: true
+  AfterControlStatement: Never
+  AfterStruct: false
+  AfterEnum: false
+  AfterUnion: false
+  BeforeElse: false
+  BeforeWhile: false
+
+# Existing code breaks after the return type in definitions
+# (e.g. "static void\nzero_memory(...)")
+AlwaysBreakAfterReturnType: TopLevelDefinitions
+
+# Existing code keeps short bodies inline: "while (len--) *p++ = 0;"
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortLoopsOnASingleLine: true
+AllowShortFunctionsOnASingleLine: None
+
+# #define tables are aligned in the codebase
+AlignConsecutiveMacros: Consecutive
+
+PointerAlignment: Right
+SpaceAfterCStyleCast: false
+IndentCaseLabels: false
+SortIncludes: Never
