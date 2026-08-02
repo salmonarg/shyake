@@ -14,15 +14,15 @@
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260518.1",
-    "prettier": "3.9.5",
+    "@cloudflare/workers-types": "^5.20260801.1",
+    "prettier": "^3.9.6",
     "typescript": "^6.0.3",
-    "wrangler": "^4.92.0"
+    "wrangler": "^4.118.0"
   },
   "dependencies": {
-    "@stenvault/pqc-wasm": "^0.2.1",
-    "hono": "^4.12.19",
-    "mldsa-wasm-rs": "^0.2.1",
-    "mldsa65-wasm": "^0.2.1"
+    "@stenvault/pqc-wasm": "^0.2.2",
+    "hono": "^4.12.33",
+    "mldsa-wasm-rs": "^0.2.2",
+    "mldsa65-wasm": "^0.2.2"
   }
 }
